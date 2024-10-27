@@ -1,15 +1,16 @@
 import pandas as pd
 from pathlib import Path
 
-
 #Define which time frame to analyze
-file_name = '/XAU_1Month_data_2004_to_2024-09-20.csv'
+file_name = '/XAU_1w_data_2004_to_2024-09-20.csv'
 
 # Define the relative path to the data file containing the corpus of the files to be analyzed
 csv_file_path = (Path(__file__).resolve().parent / 'dataset').as_posix()
 
+file_path = csv_file_path + file_name
+
 # Load the data from the CSV file
-df = pd.read_csv(csv_file_path + file_name)
+df = pd.read_csv(file_path)
 
 # Remove the rows with missing values
 df_clean = df.dropna()
@@ -18,53 +19,7 @@ if len(df) == len(df_clean):
 else:
     print(f"Missing values found: {len(df) - len(df_clean)} rows removed")   
 
-
-# --- Adding financial indicators to the dataset ---
-
-# MA (Moving Average) 
-df_clean['MA_200'] = df_clean['Close'].ewm(span=200, adjust=False).mean()
-
-# EMA (Exponential Moving Average)
-df_clean['EMA_12-26'] = (df_clean['Close'].ewm(span=12, adjust=False).mean()) - (df_clean['Close'].ewm(span=26, adjust=False).mean())
-df_clean['EMA_50-200'] = (df_clean['Close'].ewm(span=50, adjust=False).mean()) - (df_clean['Close'].ewm(span=200, adjust=False).mean())
-
-#Stocastic Oscillator: measures the location of the close relative to the high-low range over a set period of time
-lowest_low = df_clean['Low'].rolling(window=14).min()
-highest_high = df_clean['High'].rolling(window=14).max()
-k_line = 100 * ((df_clean['Close'] - lowest_low) / (highest_high - lowest_low))
-d_line = k_line.rolling(window=3).mean()
-df_clean['%K']= k_line
-df_clean['%D']= d_line
-
-# RSI (Relative Strength Index): measures the speed and change of price movements
-delta = df_clean['Close'].diff(1)
-gain = delta.where(delta > 0, 0)
-loss = -delta.where(delta < 0, 0)
-# EMA of gains and losses
-avg_gain = gain.rolling(window=14, min_periods=1).mean()
-avg_loss = loss.rolling(window=14, min_periods=1).mean()
-# Calculate the Relative Strength
-rs = avg_gain / avg_loss
-df_clean['RSI'] = 100 - (100 / (1 + rs))
-
-#TODO: Add Fibonacci retracement levels
-#TODO: Add Bollinger bands retracement levels
-
-
-# Adding FED interest rates and inflation rates (stock prices are influenced by these factors)
-# Load the dataset and specify columns to load
-fed_file = (Path(__file__).resolve().parent / 'dataset' / 'FED_interest_rate.csv').as_posix()
-fed = pd.read_csv(fed_file, usecols=['Year', 'Month', 'Effective Federal Funds Rate','Unemployment Rate','Inflation Rate'])
-# Select rows that match the time frame of our stock data
-fed = fed[fed['Year'] > 2003]
-print(fed)
-#TODO: handle missing values in the FED dataset
-
-
 # Drop the rows with missing values (some indicators require a certain number of previous values)
 df_clean = df_clean.dropna()
-
 # Save the cleaned data with financial indicators to a new CSV file
-df_clean.to_csv(csv_file_path + '/XAU_1w_data_2004_to_2024-09-20_cleaned.csv', index=False)
-
-print(df_clean)
+df_clean.to_csv(csv_file_path + '/XAU_1w_data_2004_to_2024-09-20.csv', index=False)
