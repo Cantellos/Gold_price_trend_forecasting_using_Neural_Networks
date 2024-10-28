@@ -1,5 +1,3 @@
-import pandas as pd
-from pathlib import Path
 from data_cleaning import df_clean as df
 
 # --- Adding financial indicators to the dataset ---
@@ -32,13 +30,3 @@ df['RSI'] = 100 - (100 / (1 + rs))
 
 #TODO: Add Fibonacci retracement levels
 #TODO: Add Bollinger bands retracement levels
- #TODO: check if everything wokrs
-# Adding FED interest rates and inflation rates (stock prices are influenced by these factors)
-# Load the dataset and specify columns to load
-fed_path = (Path(__file__).resolve().parent / 'dataset' / '1Month_interest_unemployment,inflation').as_posix()
-fed = pd.read_csv(fed_path, usecols=['Year', 'Month', 'Effective Federal Funds Rate','Unemployment Rate','Inflation Rate'])
-# Select rows that match the time frame of our stock data
-fed = fed[fed['Year'] > 2003]
-fed = fed.dropna()
-#fed.to_csv(fed_path, index=False)
-print(fed)
