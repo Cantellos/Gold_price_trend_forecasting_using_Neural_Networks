@@ -1,25 +1,17 @@
 import pandas as pd
 from pathlib import Path
 
-#Define which time frame to analyze
-file_name = '/XAU_1w_data_2004_to_2024-09-20.csv'
+dataset_dir = Path(__file__).parent / 'dataset'
+files = list(dataset_dir.glob('*.csv'))
 
-# Define the relative path to the data file containing the corpus of the files to be analyzed
-csv_file_path = (Path(__file__).resolve().parent / 'dataset').as_posix()
+for file in files:
+    # Load the data from the CSV file
+    df = pd.read_csv(file)
 
-file_path = csv_file_path + file_name
+    # Remove the rows with missing values
+    df_clean = df.dropna()
 
-# Load the data from the CSV file
-df = pd.read_csv(file_path)
-
-# Remove the rows with missing values
-df_clean = df.dropna()
-if len(df) == len(df_clean):
-    print("No missing values found")
-else:
-    print(f"Missing values found: {len(df) - len(df_clean)} rows removed")   
-
-# Drop the rows with missing values (some indicators require a certain number of previous values)
-df_clean = df_clean.dropna()
-# Save the cleaned data with financial indicators to a new CSV file
-df_clean.to_csv(csv_file_path + '/XAU_1w_data_2004_to_2024-09-20.csv', index=False)
+    # Drop the rows with missing values (some indicators require a certain number of previous values)
+    df_clean = df_clean.dropna()
+    # Save the cleaned data with financial indicators to a new CSV file
+    df_clean.to_csv(file, index=False)

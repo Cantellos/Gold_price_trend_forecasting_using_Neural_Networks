@@ -4,13 +4,15 @@ import pandas as pd
 from keras.api.models import Sequential
 from keras.api.layers import Dense, LSTM,GRU,SimpleRNN
 from sklearn.preprocessing import MinMaxScaler
+from data.data_cleaning import file_path
 
-df = pd.read_csv('airline-passengers.csv')
-df.head()
-df.drop(['Month'],axis=1,inplace=True)
+df = pd.read_csv(file_path)
+df = df.drop(columns=['Time'])
 dataset = np.array(df)
 dataset.reshape(-1,1)
+print(dataset)
 
+"""
 plt.plot(dataset)
 
 scaler = MinMaxScaler()
@@ -31,3 +33,9 @@ X_train,y_train=getdata(train,lookback)
 X_test,y_test=getdata(test,lookback)
 X_train=X_train.reshape(X_train.shape[0],X_train.shape[1],1)
 X_test=X_test.reshape(X_test.shape[0],X_test.shape[1],1)
+
+model=Sequential()
+model.add(LSTM(5,input_shape=(1,lookback)))
+model.add(Dense(1))
+model.compile(loss='mean_squared_error',optimizer='adam')
+"""
