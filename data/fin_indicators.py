@@ -6,10 +6,6 @@ for file in files:
     # Load the data from the CSV file
     df = pd.read_csv(file)
 
-    # Ensure the 'Close' column exists
-    if file == 'FED_1Month_interest,unemployment,inflation.csv':
-        continue
-
     # Remove the rows with missing values
     df_clean = df.dropna()
 
@@ -38,7 +34,7 @@ for file in files:
     rs = avg_gain / avg_loss
     df_clean['RSI'] = 100 - (100 / (1 + rs))
 
-    # Save the data with the financial indicators to a new CSV file
+    # Save the data with the financial indicators to a new CSV file without rows with missing values
     df = df.dropna()
     df_clean.to_csv(file, index=False)
 
