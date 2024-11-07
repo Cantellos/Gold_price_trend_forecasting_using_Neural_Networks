@@ -24,6 +24,7 @@ for file in files:
     d_line = k_line.rolling(window=3).mean()
     df_clean['%K'] = k_line
     df_clean['%D'] = d_line
+# TODO: Fix the Stochastic Oscillator in 1 unique value
 
     # Relative Strength Index
     delta = df_clean['Close'].diff(1)
