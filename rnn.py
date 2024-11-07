@@ -1,17 +1,55 @@
+import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import pandas as pd
+from sklearn.model_selection import train_test_split
 from keras.api.models import Sequential
 from keras.api.layers import Dense, LSTM,GRU,SimpleRNN
 from sklearn.preprocessing import MinMaxScaler
-from data.data_cleaning import file_path
+from pathlib import Path
 
-df = pd.read_csv(file_path)
-df = df.drop(columns=['Time'])
+dataset_dir = Path(__file__).parent / '.data' / 'dataset'
+files = list(dataset_dir.glob('*.csv'))
+
+for file in files:
+    if file.name == 'XAU_1Month_data_2004_to_2024-09-20.csv':
+        df = pd.read_csv(file)
+        
+print(df)
+
+"""
+# Supponiamo che `data` sia il nostro DataFrame con tutte le feature e i target
+data = pd.DataFrame()  # Sostituisci con il tuo dataset reale
+
+# Numero totale di campioni
+num_samples = len(data)
+
+# Indici per dividere il dataset
+train_size = int(0.7 * num_samples)
+val_size = int(0.15 * num_samples)
+test_size = num_samples - train_size - val_size
+
+# Divisione del dataset
+train_data = data.iloc[:train_size]
+val_data = data.iloc[train_size:train_size + val_size]
+test_data = data.iloc[train_size + val_size:]
+
+# Separazione delle feature e dei target per ogni set
+train_features = train_data.drop(columns=['target'])  # Sostituisci 'target' con il nome della colonna target
+train_labels = train_data['target']
+
+val_features = val_data.drop(columns=['target'])
+val_labels = val_data['target']
+
+test_features = test_data.drop(columns=['target'])
+test_labels = test_data['target']
+"""
+
+"""
+df = files.drop(columns=['Time'])
 dataset = np.array(df)
 dataset.reshape(-1,1)
 print(dataset)
-
+"""
 """
 plt.plot(dataset)
 
