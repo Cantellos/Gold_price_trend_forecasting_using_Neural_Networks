@@ -15,7 +15,7 @@ dataset_dir = Path(__file__).parent / '.data' / 'dataset'
 files = list(dataset_dir.glob('*.csv'))
 
 for file in files:
-    if file.name == 'XAU_1Month_data_2004_to_2024-09-20.csv':
+    if file.name == 'XAU_1d_data_2004_to_2024-09-20.csv':
         data = pd.read_csv(file)
        
 # Aggiungi la colonna del target (prezzo di chiusura futura)
@@ -41,7 +41,7 @@ val_data = data.iloc[train_size:train_size + val_size]
 test_data = data.iloc[train_size + val_size:]
 
 # Separazione delle feature e dei target per ogni set
-train_features = torch.tensor(train_data.drop(columns=['future_close']).values, dtype=torch.float32)
+train_features = torch.tensor(train_data.drop(columns=['future_close']).values, dtype=torch.float32).unsqueeze(1)
 train_labels = torch.tensor(train_data['future_close'].values, dtype=torch.float32).unsqueeze(1)
 
 val_features = torch.tensor(val_data.drop(columns=['future_close']).values, dtype=torch.float32)
@@ -78,7 +78,7 @@ class GRUPricePredictor(nn.Module):
 # Parametri del modello
 input_size = 9  # Numero di feature (open, high, low, close, volume)
 hidden_size = 64  # Numero di unità nascoste nel layer GRU  #TODO: Try with 128
-num_layers = 2  # Numero di layer GRU
+num_layers = 3  # Numero di layer GRU
 output_size = 1  # Usiamo un singolo output per predire il prezzo
 
 # Inizializza il modello
@@ -88,8 +88,9 @@ model = GRUPricePredictor(input_size, hidden_size, num_layers, output_size)
 
 # Definizione della loss function e dell'ottimizzatore
 criterion = nn.MSELoss()
-optimizer = optim.Adam(model.parameters(), lr=0.001)
-num_epochs = 100
+optimizer = optim.Adam(model.parameters(), lr=0.01)
+
+num_epochs = 500
 
 # Liste per memorizzare la loss e le metriche durante l'addestramento
 train_loss = []
