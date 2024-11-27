@@ -7,7 +7,7 @@ from sklearn.preprocessing import MinMaxScaler
 from pathlib import Path
 
 # Load and preprocess the dataset
-file_path = (Path(__file__).resolve().parent / '.data' / 'dataset' / 'XAU_4h_data_2004_to_2024-09-20.csv').as_posix()
+file_path = (Path(__file__).resolve().parent / '.data' / 'dataset' / 'XAU_1h_data_2004_to_2024-09-20.csv').as_posix()
 data = pd.read_csv(file_path)
 
 # Normalize relevant columns
