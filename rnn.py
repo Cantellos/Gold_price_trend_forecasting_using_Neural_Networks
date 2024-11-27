@@ -45,6 +45,7 @@ class GRUPricePredictor(nn.Module):
 
     def forward(self, x):
         h0 = torch.zeros(self.gru.num_layers, x.size(0), self.gru.hidden_size).to(x.device)
+
         out, _ = self.gru(x, h0)
         out = self.fc(out[:, -1, :])
         return out
