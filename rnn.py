@@ -41,14 +41,14 @@ val_data = data.iloc[train_size:train_size + val_size]
 test_data = data.iloc[train_size + val_size:]
 
 # Separazione delle feature e dei target per ogni set
-train_features = train_data.drop(columns=['future_close'])
-train_labels = train_data['future_close']
+train_features = torch.tensor(train_data.drop(columns=['future_close']).values, dtype=torch.float32)
+train_labels = torch.tensor(train_data['future_close'].values, dtype=torch.float32).unsqueeze(1)
 
-val_features = val_data.drop(columns=['future_close'])
-val_labels = val_data['future_close']
+val_features = torch.tensor(val_data.drop(columns=['future_close']).values, dtype=torch.float32)
+val_labels = torch.tensor(val_data['future_close'].values, dtype=torch.float32).unsqueeze(1)
 
-test_features = test_data.drop(columns=['future_close'])
-test_labels = test_data['future_close']
+test_features = torch.tensor(test_data.drop(columns=['future_close']).values, dtype=torch.float32)
+test_labels = torch.tensor(test_data['future_close'].values, dtype=torch.float32).unsqueeze(1)
 
 # Normalizzazione delle feature
 scaler = MinMaxScaler()
@@ -69,6 +69,7 @@ class GRUPricePredictor(nn.Module):
         # Inizializza l'hidden state per il layer GRU
         h0 = torch.zeros(self.gru.num_layers, x.size(0), self.gru.hidden_size).to(x.device)
         # Propaga l'input attraverso la GRU
+        #TODO: questo X è un tensore di dimensione 2, ma la GRU vuole un tensore di dimensione 3
         out, _ = self.gru(x, h0)
         # Usa l'output dell'ultimo time step per fare la previsione finale
         out = self.fc(out[:, -1, :])  # Usa solo l'ultimo output della sequenza
