@@ -7,7 +7,7 @@ from sklearn.preprocessing import MinMaxScaler
 from pathlib import Path
 
 # Load and preprocess the dataset
-file_path = (Path(__file__).resolve().parent / '.data' / 'dataset' / 'XAU_1h_data_2004_to_2024-09-20.csv').as_posix()
+file_path = (Path(__file__).resolve().parent / '.data' / 'dataset' / 'XAU_4h_data_2004_to_2024-09-20.csv').as_posix()
 data = pd.read_csv(file_path)
 
 # Normalize relevant columns
@@ -87,3 +87,29 @@ with torch.no_grad():
 
 print(f"Validation Loss: {val_loss:.4f}")
 print(f"Test Loss: {test_loss:.4f}")
+
+from sklearn.metrics import mean_absolute_error
+val_mae = mean_absolute_error(val_labels.numpy(), val_outputs.numpy())
+test_mae = mean_absolute_error(test_labels.numpy(), test_outputs.numpy())
+print(f'Validation MAE: {val_mae:.4f}')
+print(f'Test MAE: {test_mae:.4f}')
+
+from sklearn.metrics import r2_score
+val_r2 = r2_score(val_labels.numpy(), val_outputs.numpy())
+test_r2 = r2_score(test_labels.numpy(), test_outputs.numpy())
+print(f'Validation R²: {val_r2:.4f}')
+print(f'Test R²: {test_r2:.4f}')
+
+from sklearn.metrics import mean_squared_error
+val_rmse = np.sqrt(mean_squared_error(val_labels.numpy(), val_outputs.numpy()))
+test_rmse = np.sqrt(mean_squared_error(test_labels.numpy(), test_outputs.numpy()))
+print(f'Validation RMSE: {val_rmse:.4f}')
+print(f'Test RMSE: {test_rmse:.4f}')
+
+import matplotlib.pyplot as plt
+plt.figure(figsize=(10, 5))
+plt.plot(test_labels.numpy(), label='True Values')
+plt.plot(test_outputs.detach().numpy(), label='Predicted Values', alpha=0.7)
+plt.legend()
+plt.title('True vs Predicted Prices')
+plt.show()
