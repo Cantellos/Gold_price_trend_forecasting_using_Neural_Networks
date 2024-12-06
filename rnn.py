@@ -5,111 +5,42 @@ import torch.nn as nn
 import torch.optim as optim
 from sklearn.preprocessing import MinMaxScaler
 from pathlib import Path
+import matplotlib.pyplot as plt
 
 # Load and preprocess the dataset
-file_path = (Path(__file__).resolve().parent / '.data' / 'dataset' / 'XAU_4h_data_2004_to_2024-09-20.csv').as_posix()
+file_path = (Path(__file__).resolve().parent / '.data' / 'dataset' / 'XAU_1w_data_2004_to_2024-09-20.csv').as_posix()
 data = pd.read_csv(file_path)
 
-# Normalize relevant columns
-scaler = MinMaxScaler()
-columns_to_normalize = ['Open', 'High', 'Low', 'Close', 'Volume', 'MA_200', 'EMA_12-26', 'EMA_50-200', 'RSI']
-data[columns_to_normalize] = scaler.fit_transform(data[columns_to_normalize])
-
-# Add target variable and drop NaN
+# Drop useless coloumns (Date and Time), add target variable and drop NaN
 data['future_close'] = data['Close'].shift(-1)
 data = data.dropna()
+data = data.drop(['Date', 'Time'], axis=1)
 
-# Split data
+# Split data in training, validation and test sets
 train_size = int(0.7 * len(data))
 val_size = int(0.15 * len(data))
 train_data = data.iloc[:train_size]
 val_data = data.iloc[train_size:train_size + val_size]
 test_data = data.iloc[train_size + val_size:]
 
-# Prepare tensors
-train_features = torch.tensor(train_data[columns_to_normalize].values, dtype=torch.float32).unsqueeze(1)
-train_labels = torch.tensor(train_data['future_close'].values, dtype=torch.float32).unsqueeze(1)
+from sklearn.preprocessing import StandardScaler
 
-val_features = torch.tensor(val_data[columns_to_normalize].values, dtype=torch.float32).unsqueeze(1)
-val_labels = torch.tensor(val_data['future_close'].values, dtype=torch.float32).unsqueeze(1)
+# Initialize the StandardScaler
+scaler = StandardScaler()
 
-test_features = torch.tensor(test_data[columns_to_normalize].values, dtype=torch.float32).unsqueeze(1)
-test_labels = torch.tensor(test_data['future_close'].values, dtype=torch.float32).unsqueeze(1)
+# Apply StandardScaler to each feature separately
+train_data[features] = scaler.fit_transform(train_data[features])
+val_data[features] = scaler.transform(val_data[features])  # Use the same scaler to transform val and test
+test_data[features] = scaler.transform(test_data[features])
 
-# Define the GRU model
-class GRUPricePredictor(nn.Module):
-    def __init__(self, input_size, hidden_size, num_layers, output_size):
-        super(GRUPricePredictor, self).__init__()
-        self.gru = nn.GRU(input_size, hidden_size, num_layers, batch_first=True, dropout=0.2)
-        self.fc = nn.Linear(hidden_size, output_size)
+# If you want to check the standardized data
+print("Standardized Train Data:")
+print(train_data.head())
 
-    def forward(self, x):
-        h0 = torch.zeros(self.gru.num_layers, x.size(0), self.gru.hidden_size).to(x.device)
+print("\nStandardized Validation Data:")
+print(val_data.head())
 
-        out, _ = self.gru(x, h0)
-        out = self.fc(out[:, -1, :])
-        return out
+print("\nStandardized Test Data:")
+print(test_data.head())
 
-# Model parameters
-input_size = len(columns_to_normalize)
-hidden_size = 64
-num_layers = 2
-output_size = 1
 
-model = GRUPricePredictor(input_size, hidden_size, num_layers, output_size)
-
-# Loss and optimizer
-criterion = nn.MSELoss()
-optimizer = optim.Adam(model.parameters(), lr=0.001)
-
-# Training loop
-num_epochs = 100
-train_loss = []
-
-for epoch in range(num_epochs):
-    model.train()
-    optimizer.zero_grad()
-    outputs = model(train_features)
-    loss = criterion(outputs, train_labels)
-    loss.backward()
-    optimizer.step()
-    train_loss.append(loss.item())
-    if (epoch + 1) % 10 == 0:
-        print(f"Epoch [{epoch + 1}/{num_epochs}], Loss: {loss.item():.4f}")
-
-# Validation and test evaluation
-model.eval()
-with torch.no_grad():
-    val_outputs = model(val_features)
-    test_outputs = model(test_features)
-    val_loss = criterion(val_outputs, val_labels).item()
-    test_loss = criterion(test_outputs, test_labels).item()
-
-print(f"Validation Loss: {val_loss:.4f}")
-print(f"Test Loss: {test_loss:.4f}")
-
-from sklearn.metrics import mean_absolute_error
-val_mae = mean_absolute_error(val_labels.numpy(), val_outputs.numpy())
-test_mae = mean_absolute_error(test_labels.numpy(), test_outputs.numpy())
-print(f'Validation MAE: {val_mae:.4f}')
-print(f'Test MAE: {test_mae:.4f}')
-
-from sklearn.metrics import r2_score
-val_r2 = r2_score(val_labels.numpy(), val_outputs.numpy())
-test_r2 = r2_score(test_labels.numpy(), test_outputs.numpy())
-print(f'Validation R²: {val_r2:.4f}')
-print(f'Test R²: {test_r2:.4f}')
-
-from sklearn.metrics import mean_squared_error
-val_rmse = np.sqrt(mean_squared_error(val_labels.numpy(), val_outputs.numpy()))
-test_rmse = np.sqrt(mean_squared_error(test_labels.numpy(), test_outputs.numpy()))
-print(f'Validation RMSE: {val_rmse:.4f}')
-print(f'Test RMSE: {test_rmse:.4f}')
-
-import matplotlib.pyplot as plt
-plt.figure(figsize=(10, 5))
-plt.plot(test_labels.numpy(), label='True Values')
-plt.plot(test_outputs.detach().numpy(), label='Predicted Values', alpha=0.7)
-plt.legend()
-plt.title('True vs Predicted Prices')
-plt.show()
