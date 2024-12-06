@@ -7,7 +7,7 @@ from sklearn.preprocessing import MinMaxScaler
 from pathlib import Path
 
 # Load and preprocess the dataset
-file_path = (Path(__file__).resolve().parent / '.data' / 'dataset' / 'XAU_1h_data_2004_to_2024-09-20.csv').as_posix()
+file_path = (Path(__file__).resolve().parent / '.data' / 'dataset' / 'XAU_4h_data_2004_to_2024-09-20.csv').as_posix()
 data = pd.read_csv(file_path)
 
 # Normalize relevant columns
@@ -156,4 +156,3 @@ print("\nSummary of Metrics:")
 print(f"Validation: MAE={val_mae:.4f}, RMSE={val_rmse:.4f}, R²={val_r2:.4f}")
 print(f"Test: MAE={test_mae:.4f}, RMSE={test_rmse:.4f}, R²={test_r2:.4f}")
 print(f"Correlation (Test Set): {correlation:.4f}")
-
