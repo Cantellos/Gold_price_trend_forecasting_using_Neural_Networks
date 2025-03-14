@@ -26,13 +26,15 @@ test_data = data.iloc[train_size + val_size:]
 # Define the features to be standardized
 features = ['Open', 'High', 'Low', 'Close', 'Volume', 'future_close']
 
-# Normalize the data using z-score normalization
-for feature in features:
-    mean = train_data[feature].mean()
-    std = train_data[feature].std()
-    train_data[feature] = train_data[feature].apply(lambda x: (x - mean) / std)
-    val_data[feature] = val_data[feature].apply(lambda x: (x - mean) / std)
-    test_data[feature] = test_data[feature].apply(lambda x: (x - mean) / std)
+print('Train data shape:', val_data.shape)
+print('Train data examples:')
+print(val_data.head())
+
+# Normalization of data 
+scaler = MinMaxScaler()
+train_data[features] = scaler.fit_transform(train_data[features])
+val_data[features] = scaler.transform(val_data[features])
+test_data[features] = scaler.transform(test_data[features])
 
 # Define the RNN model
 class RNN(nn.Module):
