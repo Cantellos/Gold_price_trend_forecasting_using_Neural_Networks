@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 
 # Load and preprocess the dataset
-file_path = (Path(__file__).resolve().parent / '.data' / 'dataset' / 'XAU_15m_data_2004_to_2024-20-09.csv').as_posix()
+file_path = (Path(__file__).resolve().parent.parent / '.data' / 'dataset' / 'XAU_1d_data_2004_to_2024-09-20.csv').as_posix()
 data = pd.read_csv(file_path)
 
 # Drop useless coloumns (Date and Time), add Target variable (shifted because it has to be the future price, not current) and drop NaN values
