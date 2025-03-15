@@ -9,15 +9,15 @@ for file in files:
     # Remove the rows with missing values
     df_clean = df.dropna()
 
-    # Calculate the financial indicators
-    # Moving Average
+    # CALCULATE FINANCIAL INDICATORS
+    # MA: Moving Average
     df_clean['MA_200'] = df_clean['Close'].ewm(span=200, adjust=False).mean()
 
-    # Exponential Moving Average
+    # EMA: Exponential Moving Average
     df_clean['EMA_12-26'] = (df_clean['Close'].ewm(span=12, adjust=False).mean()) - (df_clean['Close'].ewm(span=26, adjust=False).mean())
     df_clean['EMA_50-200'] = (df_clean['Close'].ewm(span=50, adjust=False).mean()) - (df_clean['Close'].ewm(span=200, adjust=False).mean())
 
-    # Stochastic Oscillator
+    # SO: Stochastic Oscillator
     lowest_low = df_clean['Low'].rolling(window=14).min()
     highest_high = df_clean['High'].rolling(window=14).max()
     k_line = 100 * ((df_clean['Close'] - lowest_low) / (highest_high - lowest_low))
