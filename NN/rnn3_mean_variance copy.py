@@ -8,11 +8,11 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 
 # Load and preprocess the dataset
-file_path = (Path(__file__).resolve().parent.parent / '.data' / 'dataset' / 'XAU_1d_data_2004_to_2024-09-20.csv').as_posix()
+file_path = (Path(__file__).resolve().parent.parent / '.data' / 'dataset' / 'XAU_4h_data_2004_to_2024-09-20.csv').as_posix()
 data = pd.read_csv(file_path)
 
 # Separate features and target
-features = ['Open', 'High', 'Low', 'Close', 'Volume', 'MA_200', 'EMA_12-26', 'EMA_50-200', 'RSI']
+features = ['Open', 'High', 'Low', 'Close', 'Volume', 'MA_200', 'EMA_12-26', 'EMA_50-200', '%K', '%D', 'RSI']
 target = 'future_close'
 
 # Split the dataset using the expanding window method
@@ -21,23 +21,39 @@ train_data = data.iloc[:initial_train_size]
 val_data = data.iloc[initial_train_size:int(0.7 * len(data))]
 test_data = data.iloc[int(0.7 * len(data)):]
 
+# Dizionari per salvare i valori di media e varianza di ogni feature
+train_mean = {}
+train_variance = {}
+train_std = {}
 
-# Calculate the mean for each feature and divide the feature by its mean
-dataset = [train_data, val_data]
-data_mean = train_data[features].mean()
-train_data[features] = train_data[features] / data_mean
-val_data[features] = val_data[features] / data_mean
-test_data[features] = test_data[features] / data_mean
+for feature in features:
+    # Calcola media e varianza per ogni singola feature
+    train_mean[feature] = train_data[feature].sum() / len(train_data)  # Media
+    train_variance[feature] = ((train_data[feature] - train_mean[feature]) ** 2).sum() / len(train_data)  # Varianza
+    train_std[feature] = np.sqrt(train_variance[feature])  # Deviazione standard
 
-"""# Normalize only the features using MinMaxScaler
-scaler = MinMaxScaler()
-train_X = scaler.fit_transform(train_data[features])
-val_X = scaler.transform(val_data[features])
-test_X = scaler.transform(test_data[features])"""
+# Normalizzazione di ogni feature separatamente
+for feature in features:
+    train_data[feature] = (train_data[feature] - train_mean[feature]) / train_std[feature]
+    val_data[feature] = (val_data[feature] - train_mean[feature]) / train_std[feature]
+    test_data[feature] = (test_data[feature] - train_mean[feature]) / train_std[feature]
+
+# Normalizzazione del target separatamente
+train_target_mean = train_data[target].sum() / len(train_data)
+train_target_variance = ((train_data[target] - train_target_mean) ** 2).sum() / len(train_data)
+train_target_std = np.sqrt(train_target_variance)
+
+train_data[target] = (train_data[target] - train_target_mean) / train_target_std
+val_data[target] = (val_data[target] - train_target_mean) / train_target_std
+test_data[target] = (test_data[target] - train_target_mean) / train_target_std
+
+print(train_data.head())
+print(train_data[features].min())
+print(train_data[features].max())
 
 # Convert data to PyTorch tensors
 def create_tensor_dataset(df, features, target):
-    X = torch.tensor(df[features].values, dtype=torch.float32)
+    X = torch.tensor(df[features].values, dtype=torch.float32).unsqueeze(1)  # Add sequence length dimension
     y = torch.tensor(df[target].values, dtype=torch.float32).unsqueeze(1)  # Make sure y has correct shape
     return X, y
 
@@ -45,10 +61,8 @@ train_X, train_y = create_tensor_dataset(train_data, features, target)
 val_X, val_y = create_tensor_dataset(val_data, features, target)
 test_X, test_y = create_tensor_dataset(test_data, features, target)
 
-# Reshape X to be compatible with RNN (batch_size, sequence_length, input_size)
-train_X = train_X.unsqueeze(1)  # Add sequence length dimension
-val_X = val_X.unsqueeze(1)
-test_X = test_X.unsqueeze(1)
+print(train_X.shape, train_y.shape)
+print("OK")
 
 # Define the RNN model
 class RNN(nn.Module):
@@ -63,10 +77,10 @@ class RNN(nn.Module):
         h0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(x.device)
         out, _ = self.rnn(x, h0)
         out = self.fc(out[:, -1, :])
-        return out * data_mean['Close']
+        return out
 
 # Define the model, loss function, and optimizer
-input_size = len(features) - 1 # Exclude the target variable
+input_size = len(features)
 hidden_size = 64
 num_layers = 1
 output_size = 1

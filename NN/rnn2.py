@@ -19,16 +19,19 @@ data = pd.read_csv(file_path)
 features = ['Open', 'High', 'Low', 'Close', 'Volume', 'MA_200', 'EMA_12-26', 'EMA_50-200', 'RSI']
 target = 'future_close'
 
+
 # Split the dataset using the expanding window method
 initial_train_size = int(0.3 * len(data))
 train_data = data.iloc[:initial_train_size]
 val_data = data.iloc[initial_train_size:int(0.7 * len(data))]
 test_data = data.iloc[int(0.7 * len(data)):]
 
-# Compute mean and variance for each feature in the training set
-train_mean = train_data[features].sum() / len(train_data)  # Mean
-train_variance = ((train_data[features] - train_mean) ** 2).sum() / len(train_data)  # Variance
-train_std = np.sqrt(train_variance)  # Standard deviation
+for feature in features:
+    
+    # Compute mean and variance for each feature in the training set
+    train_mean[feature] = train_data[features].sum() / len(train_data)  # Mean
+    train_variance[feature] = ((train_data[features] - train_mean) ** 2).sum() / len(train_data)  # Variance
+    train_std = np.sqrt(train_variance)  # Standard deviation
 
 # Normalize training, validation, and test data using training mean and std
 train_data[features] = (train_data[features] - train_mean) / train_std
@@ -39,6 +42,7 @@ test_data[features] = (test_data[features] - train_mean) / train_std
 train_data[target] = (train_data[target] - train_mean[target]) / train_std[target]
 val_data[target] = (val_data[target] - train_mean[target]) / train_std[target]
 test_data[target] = (test_data[target] - train_mean[target]) / train_std[target]
+
 
 # Convert data to PyTorch tensors
 def create_tensor_dataset(df, features, target):
