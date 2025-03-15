@@ -7,12 +7,13 @@ from sklearn.preprocessing import MinMaxScaler
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-# Load and preprocess the dataset
-file_path = (Path(__file__).resolve().parent.parent / '.data' / 'dataset' / 'XAU_4h_data_2004_to_2024-09-20.csv').as_posix()
+# Load and preprocess the dataset --------------------------------------------
+# Load the dataset
+file_path = (Path(__file__).resolve().parent.parent / '.data' / 'dataset' / 'XAU_1d_data_2004_to_2024-09-20.csv').as_posix()
 data = pd.read_csv(file_path)
 
 # Separate features and target
-features = ['Open', 'High', 'Low', 'Close', 'Volume', 'MA_200', 'EMA_12-26', 'EMA_50-200', '%K', '%D', 'RSI']
+features = ['Open', 'High', 'Low', 'Volume', 'MA_200', 'EMA_12-26', 'EMA_50-200', '%K', '%D', 'RSI']
 target = 'future_close'
 
 # Split the dataset using the expanding window method
@@ -23,6 +24,7 @@ test_data = data.iloc[int(0.7 * len(data)):]
 
 
 
+# Normalize the data using Min-Max scaling ------------------------------------
 # Dictionaries to store min and max values for each feature
 train_min = {}
 train_max = {}
@@ -48,7 +50,7 @@ test_data[target] = 2 * (test_data[target] - target_min) / (target_max - target_
 
 
 
-# Convert data to PyTorch tensors
+# Convert data to PyTorch tensors --------------------------------------------
 def create_tensor_dataset(df, features, target):
     X = torch.tensor(df[features].values, dtype=torch.float32).unsqueeze(1)  # Add sequence length dimension
     y = torch.tensor(df[target].values, dtype=torch.float32).unsqueeze(1)  # Make sure y has correct shape
@@ -58,15 +60,15 @@ train_X, train_y = create_tensor_dataset(train_data, features, target)
 val_X, val_y = create_tensor_dataset(val_data, features, target)
 test_X, test_y = create_tensor_dataset(test_data, features, target)
 
-#TODO: continua finche val loss non si stabilizza (while descresce o magari x step oltre il minimo e check se è stabile)
 
-# Define the RNN model
+
+# Define the RNN model -------------------------------------------------------
 class RNN(nn.Module):
     def __init__(self, input_size, hidden_size, num_layers, output_size):
         super(RNN, self).__init__()
         self.hidden_size = hidden_size
         self.num_layers = num_layers
-        self.rnn = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True)
+        self.rnn = nn.RNN(input_size, hidden_size, num_layers, batch_first=True)
         self.fc = nn.Linear(hidden_size, output_size)
 
     def forward(self, x):
@@ -75,19 +77,24 @@ class RNN(nn.Module):
         out = self.fc(out[:, -1, :])
         return out
 
-# Define the model, loss function, and optimizer
-input_size = len(features) # Exclude the target variable
+
+
+# Set hyperparameters and instantiate the model ------------------------------
+input_size = train_X.shape[2] # Exclude the target variable
 hidden_size = 64
 num_layers = 5
+num_epochs=500
 output_size = 1
 lr=0.001
-num_epochs=500
 
+# Instantiate the model, define loss function and optimizer
 model = RNN(input_size, hidden_size, num_layers, output_size)
 criterion = nn.MSELoss()
 optimizer = optim.Adam(model.parameters(), lr)
 
-# Define the training function
+
+
+# Define the training function ------------------------------------------------
 def train_model(model, train_X, train_y, val_X, val_y, criterion, optimizer, num_epochs):
     train_losses = []
     val_losses = []
@@ -111,7 +118,9 @@ def train_model(model, train_X, train_y, val_X, val_y, criterion, optimizer, num
     
     return train_losses, val_losses
 
-# Train the model
+
+
+# Train the model -------------------------------------------------------------
 train_losses, val_losses = train_model(model, train_X, train_y, val_X, val_y, criterion, optimizer, num_epochs)
 
 # Plot the training and validation loss
@@ -125,7 +134,9 @@ plt.legend()
 plt.grid(True)
 plt.show()
 
-# Evaluate the model on the test set
+
+
+# Evaluate the model on the test set ------------------------------------------
 def evaluate_model(model, test_X, test_y, criterion):
     model.eval()
     test_loss = 0.0
@@ -143,6 +154,8 @@ def evaluate_model(model, test_X, test_y, criterion):
 # Compute test loss after training
 test_loss = evaluate_model(model, test_X, test_y, criterion)
 print(f"Final Test Loss: {test_loss:.4f}")
+
+
 
 # Inverse transform the predictions for graphical evaluation ------------------------------------------
 # Function to inverse transform the normalized values back to original price scale

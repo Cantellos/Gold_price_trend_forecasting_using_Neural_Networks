@@ -7,6 +7,10 @@ from sklearn.preprocessing import MinMaxScaler
 import matplotlib.pyplot as plt
 from pathlib import Path
 
+
+# TODO: Try different initializations for the weights and biases of the RNN and use pretrained weights/models
+
+
 # Load and preprocess the dataset --------------------------------------------
 # Load the dataset
 file_path = (Path(__file__).resolve().parent.parent / '.data' / 'dataset' / 'XAU_1d_data_2004_to_2024-09-20.csv').as_posix()
@@ -50,33 +54,15 @@ test_data[target] = 2 * (test_data[target] - target_min) / (target_max - target_
 
 
 
-# Implement Sliding Window Input ---------------------------------------------
-# Function to create sliding window sequences
-def create_sequences(df, features, target, seq_length):
-    X, y = [], []
-    for i in range(len(df) - seq_length):
-        X.append(df[features].iloc[i:i+seq_length].values)  # Past `seq_length` days
-        y.append(df[target].iloc[i+seq_length])  # Target value for the next day
-    return np.array(X), np.array(y)
-
-sequence_length = 10  # Number of past days used to predict the next day
-
-# Create tensor datasets with sliding window input
-train_X, train_y = create_sequences(train_data, features, target, sequence_length)
-val_X, val_y = create_sequences(val_data, features, target, sequence_length)
-test_X, test_y = create_sequences(test_data, features, target, sequence_length)
-
-
-
 # Convert data to PyTorch tensors --------------------------------------------
-train_X = torch.tensor(train_X, dtype=torch.float32)
-train_y = torch.tensor(train_y, dtype=torch.float32).unsqueeze(1) 
+def create_tensor_dataset(df, features, target):
+    X = torch.tensor(df[features].values, dtype=torch.float32).unsqueeze(1)  # Add sequence length dimension
+    y = torch.tensor(df[target].values, dtype=torch.float32).unsqueeze(1)  # Make sure y has correct shape
+    return X, y
 
-val_X = torch.tensor(val_X, dtype=torch.float32)
-val_y = torch.tensor(val_y, dtype=torch.float32).unsqueeze(1)
-
-test_X = torch.tensor(test_X, dtype=torch.float32)
-test_y = torch.tensor(test_y, dtype=torch.float32).unsqueeze(1)
+train_X, train_y = create_tensor_dataset(train_data, features, target)
+val_X, val_y = create_tensor_dataset(val_data, features, target)
+test_X, test_y = create_tensor_dataset(test_data, features, target)
 
 
 
@@ -95,38 +81,15 @@ class RNN(nn.Module):
         out = self.fc(out[:, -1, :])
         return out
 
-class RNN_dropout(nn.Module):
-    def __init__(self, input_size, hidden_size, num_layers, output_size, dropout_prob=0.5):
-        super(RNN_dropout, self).__init__()
-        self.hidden_size = hidden_size
-        self.num_layers = num_layers
-        self.dropout_prob = dropout_prob
-        
-        # Define the RNN layer with dropout
-        self.rnn = nn.RNN(input_size, hidden_size, num_layers, batch_first=True, dropout=self.dropout_prob)
-        
-        # Fully connected layer
-        self.fc = nn.Linear(hidden_size, output_size)
-
-    def forward(self, x):
-        h0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(x.device)
-        
-        # RNN forward pass
-        out, _ = self.rnn(x, h0)
-        
-        # Dropout layer (applied to the output of the RNN layer)
-        out = self.fc(out[:, -1, :])  # Get the output of the last time step
-        return out
 
 
 # Set hyperparameters and instantiate the model ------------------------------
 input_size = train_X.shape[2] # Exclude the target variable
-hidden_size = 128
+hidden_size = 64
 num_layers = 5
-num_epochs=50
+num_epochs=500
 output_size = 1
 lr=0.001
-#batch_size=64
 
 # Instantiate the model, define loss function and optimizer
 model = RNN(input_size, hidden_size, num_layers, output_size)
@@ -135,16 +98,11 @@ optimizer = optim.Adam(model.parameters(), lr)
 
 
 
-# Define the training function with early stopping ----------------------------
+# Define the training function ------------------------------------------------
 def train_model(model, train_X, train_y, val_X, val_y, criterion, optimizer, num_epochs):
     train_losses = []
     val_losses = []
     
-    early_stopping = True  # Enable early stopping
-    patience = 100  # Define patience for early stopping
-    epochs_no_improve = 0  # Counter for early stopping
-    best_val_loss = float('inf')  # Set initial loss to infinity
-
     for epoch in range(num_epochs):
         model.train()
         optimizer.zero_grad()
@@ -161,25 +119,12 @@ def train_model(model, train_X, train_y, val_X, val_y, criterion, optimizer, num
             val_losses.append(val_loss.item())
 
         print(f'Epoch {epoch + 1}/{num_epochs}, Train Loss: {loss.item():.4f}, Val Loss: {val_loss.item():.4f}')
-
-        if early_stopping:
-            # Check for improvement
-            if val_loss.item() < best_val_loss:
-                best_val_loss = val_loss.item()
-                epochs_no_improve = 0  # Reset counter
-            else:
-                epochs_no_improve += 1  # Increment if no improvement
-            
-            # Early stopping condition
-            if epochs_no_improve >= patience:
-                print(f"Early stopping triggered after {epoch+1} epochs. Best Val Loss: {best_val_loss:.4f}")
-                break
-
+    
     return train_losses, val_losses
 
 
 
-# Train the model ------------------------------------------------------------
+# Train the model -------------------------------------------------------------
 train_losses, val_losses = train_model(model, train_X, train_y, val_X, val_y, criterion, optimizer, num_epochs)
 
 # Plot the training and validation loss
@@ -195,12 +140,19 @@ plt.show()
 
 
 
-# Evaluate the model on the test set -----------------------------------------
+# Evaluate the model on the test set ------------------------------------------
 def evaluate_model(model, test_X, test_y, criterion):
     model.eval()
+    test_loss = 0.0
     with torch.no_grad():
-        test_output = model(test_X)
-        test_loss = criterion(test_output, test_y).item()
+        for i in range(len(test_X)):
+            x_test = test_X[i].unsqueeze(0)  # Add batch dimension
+            y_test = test_y[i].unsqueeze(0)  # Add batch dimension
+            output = model(x_test)
+            loss = criterion(output, y_test)
+            test_loss += loss.item()
+    
+    test_loss /= len(test_X)  # Compute average loss
     return test_loss
 
 # Compute test loss after training
