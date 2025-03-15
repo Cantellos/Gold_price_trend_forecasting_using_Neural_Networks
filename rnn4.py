@@ -8,10 +8,10 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 
 # Load and preprocess the dataset
-file_path = (Path(__file__).resolve().parent / '.data' / 'dataset' / 'XAU_15m_data_2004_to_2024-20-09.csv').as_posix()
+file_path = (Path(__file__).resolve().parent / '.data' / 'dataset' / 'XAU_4h_data_2004_to_2024-09-20.csv').as_posix()
 data = pd.read_csv(file_path)
 
-# Drop useless coloumns (Date and Time), add Target variable (shifted because it has to be the future price, not current) and drop NaN values
+# Drop useless columns (Date and Time), add Target variable (shifted because it has to be the future price, not current) and drop NaN values
 data = data.drop(['Date', 'Time'], axis=1)
 data['future_close'] = data['Close'].shift(-1)
 data = data.dropna()
@@ -26,19 +26,15 @@ train_data = data.iloc[:initial_train_size]
 val_data = data.iloc[initial_train_size:int(0.7 * len(data))]
 test_data = data.iloc[int(0.7 * len(data)):]
 
-
-# Calculate the mean for each feature and divide the feature by its mean
-dataset = [train_data, val_data]
-data_mean = train_data[features].mean()
-train_data[features] = train_data[features] / data_mean
-val_data[features] = val_data[features] / data_mean
-test_data[features] = test_data[features] / data_mean
-
-"""# Normalize only the features using MinMaxScaler
+# Normalize only the features using MinMaxScaler
 scaler = MinMaxScaler()
 train_X = scaler.fit_transform(train_data[features])
 val_X = scaler.transform(val_data[features])
-test_X = scaler.transform(test_data[features])"""
+test_X = scaler.transform(test_data[features])
+
+print('Train data shape:', val_data.shape)
+print('Train data examples:')
+print(val_data.head())
 
 # Convert data to PyTorch tensors
 def create_tensor_dataset(df, features, target):
@@ -55,30 +51,31 @@ train_X = train_X.unsqueeze(1)  # Add sequence length dimension
 val_X = val_X.unsqueeze(1)
 test_X = test_X.unsqueeze(1)
 
-# Define the RNN model
-class RNN(nn.Module):
+# Define the LSTM model (instead of simple RNN)
+class LSTM(nn.Module):
     def __init__(self, input_size, hidden_size, num_layers, output_size):
-        super(RNN, self).__init__()
+        super(LSTM, self).__init__()
         self.hidden_size = hidden_size
         self.num_layers = num_layers
-        self.rnn = nn.RNN(input_size, hidden_size, num_layers, batch_first=True)
+        self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True)
         self.fc = nn.Linear(hidden_size, output_size)
 
     def forward(self, x):
         h0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(x.device)
-        out, _ = self.rnn(x, h0)
+        c0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(x.device)
+        out, _ = self.lstm(x, (h0, c0))
         out = self.fc(out[:, -1, :])
-        return out * data_mean['Close']
+        return out
 
 # Define the model, loss function, and optimizer
 input_size = len(features)
-hidden_size = 20
-num_layers = 1
+hidden_size = 50
+num_layers = 2
 output_size = 1
-lr=0.1
-num_epochs=100
+lr = 0.001  # Lower learning rate for stability with LSTM
+num_epochs = 500
 
-model = RNN(input_size, hidden_size, num_layers, output_size)
+model = LSTM(input_size, hidden_size, num_layers, output_size)
 criterion = nn.MSELoss()
 optimizer = optim.Adam(model.parameters(), lr)
 
