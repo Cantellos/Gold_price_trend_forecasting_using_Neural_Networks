@@ -11,11 +11,6 @@ from pathlib import Path
 file_path = (Path(__file__).resolve().parent.parent / '.data' / 'dataset' / 'XAU_1d_data_2004_to_2024-09-20.csv').as_posix()
 data = pd.read_csv(file_path)
 
-# Drop useless columns (Date and Time), add Target variable (shifted because it has to be the future price, not current) and drop NaN values
-data = data.drop(['Date', 'Time'], axis=1)
-data['future_close'] = data['Close'].shift(-1)
-data = data.dropna()
-
 # Separate features and target
 features = ['Open', 'High', 'Low', 'Close', 'Volume', 'MA_200', 'EMA_12-26', 'EMA_50-200', 'RSI']
 target = 'future_close'
@@ -68,8 +63,8 @@ class LSTM(nn.Module):
         return out
 
 # Define the model, loss function, and optimizer
-input_size = len(features)
-hidden_size = 50
+input_size = len(features) - 1 # Exclude the target variable
+hidden_size = 64
 num_layers = 2
 output_size = 1
 lr = 0.01  # Lower learning rate for stability with LSTM

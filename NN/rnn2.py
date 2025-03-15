@@ -7,14 +7,13 @@ from sklearn.preprocessing import MinMaxScaler
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-# Load and preprocess the dataset
-file_path = (Path(__file__).resolve().parent.parent / '.data' / 'dataset' / 'XAU_1d_data_2004_to_2024-09-20.csv').as_posix()
-data = pd.read_csv(file_path)
+import pandas as pd
+import numpy as np
+from pathlib import Path
 
-# Drop useless coloumns (Date and Time), add Target variable (shifted because it has to be the future price, not current) and drop NaN values
-data = data.drop(['Date', 'Time'], axis=1)
-data['future_close'] = data['Close'].shift(-1)
-data = data.dropna()
+# Load and preprocess the dataset
+file_path = (Path(__file__).resolve().parent.parent / '.data' / 'dataset' / 'XAU_4h_data_2004_to_2024-09-20.csv').as_posix()
+data = pd.read_csv(file_path)
 
 # Separate features and target
 features = ['Open', 'High', 'Low', 'Close', 'Volume', 'MA_200', 'EMA_12-26', 'EMA_50-200', 'RSI']
@@ -26,19 +25,20 @@ train_data = data.iloc[:initial_train_size]
 val_data = data.iloc[initial_train_size:int(0.7 * len(data))]
 test_data = data.iloc[int(0.7 * len(data)):]
 
+# Compute mean and variance for each feature in the training set
+train_mean = train_data[features].sum() / len(train_data)  # Mean
+train_variance = ((train_data[features] - train_mean) ** 2).sum() / len(train_data)  # Variance
+train_std = np.sqrt(train_variance)  # Standard deviation
 
-# Calculate the mean for each feature and divide the feature by its mean
-dataset = [train_data, val_data]
-data_mean = train_data[features].mean()
-train_data[features] = train_data[features] / data_mean
-val_data[features] = val_data[features] / data_mean
-test_data[features] = test_data[features] / data_mean
+# Normalize training, validation, and test data using training mean and std
+train_data[features] = (train_data[features] - train_mean) / train_std
+val_data[features] = (val_data[features] - train_mean) / train_std
+test_data[features] = (test_data[features] - train_mean) / train_std
 
-"""# Normalize only the features using MinMaxScaler
-scaler = MinMaxScaler()
-train_X = scaler.fit_transform(train_data[features])
-val_X = scaler.transform(val_data[features])
-test_X = scaler.transform(test_data[features])"""
+# Normalize target 
+train_data[target] = (train_data[target] - train_mean[target]) / train_std[target]
+val_data[target] = (val_data[target] - train_mean[target]) / train_std[target]
+test_data[target] = (test_data[target] - train_mean[target]) / train_std[target]
 
 # Convert data to PyTorch tensors
 def create_tensor_dataset(df, features, target):
@@ -68,11 +68,11 @@ class RNN(nn.Module):
         h0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(x.device)
         out, _ = self.rnn(x, h0)
         out = self.fc(out[:, -1, :])
-        return out * data_mean['Close']
+        return out
 
 # Define the model, loss function, and optimizer
 input_size = len(features) - 1 # Exclude the target variable
-hidden_size = 20
+hidden_size = 64
 num_layers = 1
 output_size = 1
 lr=0.1
