@@ -7,9 +7,17 @@ from sklearn.preprocessing import MinMaxScaler
 import matplotlib.pyplot as plt
 from pathlib import Path
 
+# TODO 
+# 0: split the dataset using the expanding window method 
+# 1: try different data normalisation methods
+# 2: try generalisation on other datasets (saving the model and loading it)
+# 3: try different initialisation methods
+# 4: try doing fine tuning on the model
+# 5: try different preprocessing data methods
+
 # Load and preprocess the dataset --------------------------------------------
 # Load the dataset
-file_path = (Path(__file__).resolve().parent.parent / '.data' / 'dataset' / 'XAU_1d_data_2004_to_2024-09-20.csv').as_posix()
+file_path = (Path(__file__).resolve().parent.parent / '.data' / 'dataset' / 'XAU_15m_data_2004_to_2024-09-20.csv').as_posix()
 data = pd.read_csv(file_path)
 
 # Separate features and target
@@ -85,8 +93,7 @@ hidden_size = 128
 num_layers = 1
 num_epochs = 50
 output_size = 1
-lr = 0.002
-
+lr = 0.001
 
 class MAPELoss(nn.Module):
     def forward(self, y_pred, y_true):
@@ -95,7 +102,11 @@ class MAPELoss(nn.Module):
 
 # Instantiate the model, define loss function and optimizer
 model = RNN(input_size, hidden_size, num_layers, output_size)
-criterion = nn.SmoothL1Loss()
+
+# criterion = nn.MSELoss()      # Mean Squared Error: sensibile agli outliers, per non sbagliare mai troppo
+criterion = nn.SmoothL1Loss()   # Huber Loss: robusto agli outliers, ma meno sensibile ai picchi rispetto all'MSE
+# criterion = MAPELoss()        # Mean Absolute Percentage Error: per valutare le previsioni in termini percentuali
+
 optimizer = optim.Adam(model.parameters(), lr)
 
 

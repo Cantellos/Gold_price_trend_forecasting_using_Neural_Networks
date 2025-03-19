@@ -9,7 +9,7 @@ from pathlib import Path
 
 # Load and preprocess the dataset --------------------------------------------
 # Load the dataset
-file_path = (Path(__file__).resolve().parent.parent / '.data' / 'dataset' / 'XAU_1d_data_2004_to_2024-09-20.csv').as_posix()
+file_path = (Path(__file__).resolve().parent.parent / '.data' / 'dataset' / 'XAU_15m_data_2004_to_2024-09-20.csv').as_posix()
 data = pd.read_csv(file_path)
 
 # Separate features and target

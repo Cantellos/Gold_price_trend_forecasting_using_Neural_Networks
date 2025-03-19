@@ -7,9 +7,12 @@ from sklearn.preprocessing import MinMaxScaler
 import matplotlib.pyplot as plt
 from pathlib import Path
 
+# TODO 
+# 3: try different initialisation methods
+
 # Load and preprocess the dataset --------------------------------------------
 # Load the dataset
-file_path = (Path(__file__).resolve().parent.parent / '.data' / 'dataset' / 'XAU_1h_data_2004_to_2024-09-20.csv').as_posix()
+file_path = (Path(__file__).resolve().parent.parent / '.data' / 'dataset' / 'XAU_15m_data_2004_to_2024-09-20.csv').as_posix()
 data = pd.read_csv(file_path)
 
 # Separate features and target
@@ -83,14 +86,23 @@ class RNN(nn.Module):
 input_size = train_X.shape[2] # Exclude the target variable
 hidden_size = 128
 num_layers = 1
-num_epochs = 100
+num_epochs = 50
 output_size = 1
-lr = 0.002
+lr = 0.001
+
+class MAPELoss(nn.Module):
+    def forward(self, y_pred, y_true):
+        epsilon = 1e-8  # per evitare divisioni per zero
+        return torch.mean(torch.abs((y_true - y_pred) / (y_true + epsilon))) * 100
 
 # Instantiate the model, define loss function and optimizer
 model = RNN(input_size, hidden_size, num_layers, output_size)
-criterion = nn.MSELoss()
-optimizer = optim.Adam(model.parameters(), lr)
+
+criterion = nn.MSELoss()      # Mean Squared Error: sensibile agli outliers, per non sbagliare mai troppo
+# criterion = nn.SmoothL1Loss()   # Huber Loss: robusto agli outliers, ma meno sensibile ai picchi rispetto all'MSE
+# criterion = MAPELoss()        # Mean Absolute Percentage Error: per valutare le previsioni in termini percentuali
+
+optimizer = optim.RMSprop(model.parameters(), lr)
 
 
 
@@ -106,7 +118,7 @@ def train_model(model, train_X, train_y, val_X, val_y, criterion, optimizer, num
         loss = criterion(output, train_y)
         loss.backward()
         # Clip dei gradienti per evitare l'esplosione dei gradienti nella RNN
-        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+        #torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()
         train_losses.append(loss.item())
 
@@ -156,7 +168,7 @@ def evaluate_model(model, test_X, test_y, criterion):
 
 # Compute test loss after training
 test_loss = evaluate_model(model, test_X, test_y, criterion)
-print(f"Final Test Loss (RNN_MinMax_Adam): {test_loss:.4f}")
+print(f"Final Test Loss (RNN_MinMax_RMS): {test_loss:.4f}")
 
 
 
@@ -192,3 +204,12 @@ plt.title("Actual vs Predicted Price (Test Set)")
 plt.legend()
 plt.grid(True)
 plt.show()
+
+
+
+# 2) Save the model to disk -----------------------------------------------------
+model_path = (Path(__file__).resolve().parent / 'RNN_MinMax_RMS.pth').as_posix()
+torch.save(model.state_dict(), model_path)
+print(f"Model saved to: {model_path}")
+
+

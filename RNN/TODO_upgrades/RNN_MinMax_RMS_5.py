@@ -8,11 +8,6 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 
 # TODO 
-# 0: split the dataset using the expanding window method 
-# 1: try different data normalisation methods
-# 2: try generalisation on other datasets (saving the model and loading it)
-# 3: try different initialisation methods
-# 4: try doing fine tuning on the model
 # 5: try different preprocessing data methods
 
 # Load and preprocess the dataset --------------------------------------------
@@ -209,3 +204,12 @@ plt.title("Actual vs Predicted Price (Test Set)")
 plt.legend()
 plt.grid(True)
 plt.show()
+
+
+
+# 2) Save the model to disk -----------------------------------------------------
+model_path = (Path(__file__).resolve().parent / 'RNN_MinMax_RMS.pth').as_posix()
+torch.save(model.state_dict(), model_path)
+print(f"Model saved to: {model_path}")
+
+
