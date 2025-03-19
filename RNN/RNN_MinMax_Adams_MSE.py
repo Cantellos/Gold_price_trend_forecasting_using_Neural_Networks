@@ -7,13 +7,9 @@ from sklearn.preprocessing import MinMaxScaler
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-
-# TODO: Try different initializations for the weights and biases of the RNN and use pretrained weights/models
-
-
 # Load and preprocess the dataset --------------------------------------------
 # Load the dataset
-file_path = (Path(__file__).resolve().parent.parent / '.data' / 'dataset' / 'XAU_1d_data_2004_to_2024-09-20.csv').as_posix()
+file_path = (Path(__file__).resolve().parent.parent / '.data' / 'dataset' / 'XAU_1h_data_2004_to_2024-09-20.csv').as_posix()
 data = pd.read_csv(file_path)
 
 # Separate features and target
@@ -85,11 +81,11 @@ class RNN(nn.Module):
 
 # Set hyperparameters and instantiate the model ------------------------------
 input_size = train_X.shape[2] # Exclude the target variable
-hidden_size = 64
-num_layers = 5
-num_epochs=500
+hidden_size = 128
+num_layers = 1
+num_epochs = 100
 output_size = 1
-lr=0.001
+lr = 0.002
 
 # Instantiate the model, define loss function and optimizer
 model = RNN(input_size, hidden_size, num_layers, output_size)
@@ -109,6 +105,8 @@ def train_model(model, train_X, train_y, val_X, val_y, criterion, optimizer, num
         output = model(train_X)
         loss = criterion(output, train_y)
         loss.backward()
+        # Clip dei gradienti per evitare l'esplosione dei gradienti nella RNN
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()
         train_losses.append(loss.item())
 
@@ -118,7 +116,8 @@ def train_model(model, train_X, train_y, val_X, val_y, criterion, optimizer, num
             val_loss = criterion(val_output, val_y)
             val_losses.append(val_loss.item())
 
-        print(f'Epoch {epoch + 1}/{num_epochs}, Train Loss: {loss.item():.4f}, Val Loss: {val_loss.item():.4f}')
+        if (epoch + 1) % 10 == 0:
+            print(f'Epoch {epoch + 1}/{num_epochs}, Train Loss: {loss.item():.4f}, Val Loss: {val_loss.item():.4f}')
     
     return train_losses, val_losses
 
@@ -157,7 +156,7 @@ def evaluate_model(model, test_X, test_y, criterion):
 
 # Compute test loss after training
 test_loss = evaluate_model(model, test_X, test_y, criterion)
-print(f"Final Test Loss: {test_loss:.4f}")
+print(f"Final Test Loss (RNN_MinMax_Adam): {test_loss:.4f}")
 
 
 

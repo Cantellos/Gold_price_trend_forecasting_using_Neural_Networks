@@ -87,9 +87,15 @@ num_epochs = 50
 output_size = 1
 lr = 0.002
 
+
+class MAPELoss(nn.Module):
+    def forward(self, y_pred, y_true):
+        epsilon = 1e-8  # per evitare divisioni per zero
+        return torch.mean(torch.abs((y_true - y_pred) / (y_true + epsilon))) * 100
+
 # Instantiate the model, define loss function and optimizer
 model = RNN(input_size, hidden_size, num_layers, output_size)
-criterion = nn.MSELoss()
+criterion = nn.SmoothL1Loss()
 optimizer = optim.Adam(model.parameters(), lr)
 
 
@@ -156,7 +162,7 @@ def evaluate_model(model, test_X, test_y, criterion):
 
 # Compute test loss after training
 test_loss = evaluate_model(model, test_X, test_y, criterion)
-print(f"Final Test Loss: {test_loss:.4f}")
+print(f"Final Test Loss (RNN_MinMax_Adam): {test_loss:.4f}")
 
 
 
