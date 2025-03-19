@@ -105,6 +105,8 @@ def train_model(model, train_X, train_y, val_X, val_y, criterion, optimizer, num
         output = model(train_X)
         loss = criterion(output, train_y)
         loss.backward()
+        # Clip dei gradienti per evitare l'esplosione dei gradienti nella RNN
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()
         train_losses.append(loss.item())
 
