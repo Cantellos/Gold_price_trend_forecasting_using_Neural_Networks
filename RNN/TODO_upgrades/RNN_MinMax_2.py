@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 
 # TODO 
-# 0: split the dataset using the expanding window method 
+# 2: try different data normalisation methods
 
 # Load and preprocess the dataset --------------------------------------------
 # Load the dataset
@@ -20,30 +20,30 @@ features = ['Open', 'High', 'Low', 'Close', 'Volume', 'MA_200', 'EMA_12-26', 'EM
 target = 'future_close'
 
 # Split the dataset using the expanding window method
-initial_train_size = int(0.3 * len(data))
-train_data = data.iloc[:initial_train_size]
-val_data = data.iloc[initial_train_size:int(0.7 * len(data))]
-test_data = data.iloc[int(0.7 * len(data)):]
+train_size = int(0.7 * len(data))
+train_data = data.iloc[:train_size]
+val_data = data.iloc[train_size:int(0.85 * len(data))]
+test_data = data.iloc[int(0.85 * len(data)):]
 
 
 
-# Normalize the data using Min-Max scaling ------------------------------------
+# Normalize the data using Min-Max scaling (scales data to range [-1, 1]) ------------------------------------
 # Dictionaries to store min and max values for each feature
 train_min = {}
 train_max = {}
 
-# Compute min and max for each feature based only on training data
+# Find min and max for each feature on the training data
 for feature in features:
     train_min[feature] = train_data[feature].min()
     train_max[feature] = train_data[feature].max()
 
-# Apply Min-Max scaling to each feature (scales data to range [-1, 1])
+# Apply Min-Max scaling to each feature
 for feature in features:
     train_data[feature] = 2 * (train_data[feature] - train_min[feature]) / (train_max[feature] - train_min[feature]) - 1
     val_data[feature] = 2 * (val_data[feature] - train_min[feature]) / (train_max[feature] - train_min[feature]) - 1
     test_data[feature] = 2 * (test_data[feature] - train_min[feature]) / (train_max[feature] - train_min[feature]) - 1
 
-# Normalize target variable separately using Min-Max Scaling
+# Normalize target variable separately
 target_min = train_data[target].min()
 target_max = train_data[target].max()
 
@@ -55,8 +55,9 @@ test_data[target] = 2 * (test_data[target] - target_min) / (target_max - target_
 
 # Convert data to PyTorch tensors --------------------------------------------
 def create_tensor_dataset(df, features, target):
-    X = torch.tensor(df[features].values, dtype=torch.float32).unsqueeze(1)  # Add sequence length dimension
-    y = torch.tensor(df[target].values, dtype=torch.float32).unsqueeze(1)  # Make sure y has correct shape
+    # Add dimension to ensure the correct shape for RNN input
+    X = torch.tensor(df[features].values, dtype=torch.float32).unsqueeze(1)
+    y = torch.tensor(df[target].values, dtype=torch.float32).unsqueeze(1)
     return X, y
 
 train_X, train_y = create_tensor_dataset(train_data, features, target)
@@ -83,27 +84,27 @@ class RNN(nn.Module):
 
 
 # Set hyperparameters and instantiate the model ------------------------------
-input_size = train_X.shape[2] # Exclude the target variable
+input_size = train_X.shape[2] # Number of features (only training data, not target variable)
 hidden_size = 128
 num_layers = 1
 num_epochs = 50
 output_size = 1
 lr = 0.001
 
+# Instantiate the model, define loss function and optimizer
+model = RNN(input_size, hidden_size, num_layers, output_size)
+
 class MAPELoss(nn.Module):
     def forward(self, y_pred, y_true):
         epsilon = 1e-8  # per evitare divisioni per zero
         return torch.mean(torch.abs((y_true - y_pred) / (y_true + epsilon))) * 100
 
-# Instantiate the model, define loss function and optimizer
-model = RNN(input_size, hidden_size, num_layers, output_size)
-
-criterion = nn.MSELoss()      # Mean Squared Error: sensibile agli outliers, per non sbagliare mai troppo
-# criterion = nn.SmoothL1Loss()   # Huber Loss: robusto agli outliers, ma meno sensibile ai picchi rispetto all'MSE
+criterion = nn.MSELoss()        # Mean Squared Error: sensibile agli outliers, per non sbagliare mai troppo
+# criterion = nn.SmoothL1Loss() # Huber Loss: robusto agli outliers, ma meno sensibile ai picchi rispetto all'MSE
 # criterion = MAPELoss()        # Mean Absolute Percentage Error: per valutare le previsioni in termini percentuali
 
 optimizer = optim.RMSprop(model.parameters(), lr)
-
+# optimizer = optim.Adam(model.parameters(), lr)
 
 
 # Define the training function ------------------------------------------------
@@ -117,8 +118,6 @@ def train_model(model, train_X, train_y, val_X, val_y, criterion, optimizer, num
         output = model(train_X)
         loss = criterion(output, train_y)
         loss.backward()
-        # Clip dei gradienti per evitare l'esplosione dei gradienti nella RNN
-        #torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()
         train_losses.append(loss.item())
 
@@ -157,23 +156,24 @@ def evaluate_model(model, test_X, test_y, criterion):
     test_loss = 0.0
     with torch.no_grad():
         for i in range(len(test_X)):
-            x_test = test_X[i].unsqueeze(0)  # Add batch dimension
-            y_test = test_y[i].unsqueeze(0)  # Add batch dimension
+            x_test = test_X[i].unsqueeze(0)
+            y_test = test_y[i].unsqueeze(0)
             output = model(x_test)
             loss = criterion(output, y_test)
             test_loss += loss.item()
     
-    test_loss /= len(test_X)  # Compute average loss
+    # Calculate Average Loss
+    test_loss /= len(test_X)
     return test_loss
 
 # Compute test loss after training
 test_loss = evaluate_model(model, test_X, test_y, criterion)
-print(f"Final Test Loss (RNN_MinMax_RMS): {test_loss:.4f}")
+print(f"Final Test Loss (RNN_MinMax): {test_loss:.4f}")
 
 
 
 # Inverse transform the predictions for graphical evaluation ------------------------------------------
-# Function to inverse transform the normalized values back to original price scale
+# Inverse transform the normalized values back to original price scale
 def inverse_transform(preds, min_val, max_val):
     return (preds + 1) * (max_val - min_val) / 2 + min_val
 
@@ -184,13 +184,13 @@ actual_values = []
 
 with torch.no_grad():
     for i in range(len(test_X)):
-        x_test = test_X[i].unsqueeze(0)  # Add batch dimension
-        y_test = test_y[i].unsqueeze(0)  # Add batch dimension
+        x_test = test_X[i].unsqueeze(0)
+        y_test = test_y[i].unsqueeze(0)
         pred = model(x_test)
         predictions.append(pred.item())
         actual_values.append(y_test.item())
 
-# Convert back to original price scale
+# Convert to original price scale
 predictions = inverse_transform(np.array(predictions), target_min, target_max)
 actual_values = inverse_transform(np.array(actual_values), target_min, target_max)
 
@@ -204,12 +204,3 @@ plt.title("Actual vs Predicted Price (Test Set)")
 plt.legend()
 plt.grid(True)
 plt.show()
-
-
-
-# 2) Save the model to disk -----------------------------------------------------
-model_path = (Path(__file__).resolve().parent / 'RNN_MinMax_RMS.pth').as_posix()
-torch.save(model.state_dict(), model_path)
-print(f"Model saved to: {model_path}")
-
-

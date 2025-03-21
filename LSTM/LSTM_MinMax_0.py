@@ -63,23 +63,18 @@ test_X, test_y = create_tensor_dataset(test_data, features, target)
 
 
 # Define the LSTM model -------------------------------------------------------
-# [MODIFICATO] Classe modificata da RNN a LSTM
 class LSTM(nn.Module):
     def __init__(self, input_size, hidden_size, num_layers, output_size, dropout=0.2):
         super(LSTM, self).__init__()
         self.hidden_size = hidden_size
         self.num_layers = num_layers
-        # [MODIFICATO] Cambiato da nn.RNN a nn.LSTM
         self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True, dropout=dropout if num_layers > 1 else 0)
         self.fc = nn.Linear(hidden_size, output_size)
-        # [AGGIUNTO] Dropout layer per regolarizzazione
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x):
-        # [MODIFICATO] LSTM richiede sia h0 (hidden state) che c0 (cell state)
         h0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(x.device)
         c0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(x.device)
-        
         out, _ = self.lstm(x, (h0, c0))
         out = self.dropout(out[:, -1, :])
         out = self.fc(out)
@@ -106,7 +101,6 @@ def train_model(model, train_X, train_y, val_X, val_y, criterion, optimizer, num
     train_losses = []
     val_losses = []
     
-    # [AGGIUNTO] Scheduler per ridurre il learning rate quando la loss si stabilizza
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=5, factor=0.5, verbose=True)
     
     for epoch in range(num_epochs):
@@ -115,7 +109,7 @@ def train_model(model, train_X, train_y, val_X, val_y, criterion, optimizer, num
         output = model(train_X)
         loss = criterion(output, train_y)
         loss.backward()
-        # [AGGIUNTO] Clip dei gradienti per evitare l'esplosione dei gradienti nella LSTM
+        # Clip dei gradienti per evitare l'esplosione dei gradienti nella LSTM
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()
         train_losses.append(loss.item())
@@ -126,7 +120,7 @@ def train_model(model, train_X, train_y, val_X, val_y, criterion, optimizer, num
             val_loss = criterion(val_output, val_y)
             val_losses.append(val_loss.item())
             
-        # [AGGIUNTO] Aggiornamento dello scheduler basato sulla loss di validazione
+        # Aggiornamento dello scheduler basato sulla loss di validazione
         scheduler.step(val_loss)
 
         if (epoch + 1) % 10 == 0:
@@ -145,7 +139,7 @@ plt.plot(range(1, len(train_losses) + 1), train_losses, label="Training Loss", m
 plt.plot(range(1, len(val_losses) + 1), val_losses, label="Validation Loss", marker="s")
 plt.xlabel("Epoch")
 plt.ylabel("Loss")
-plt.title("Training vs Validation Loss (LSTM Model)")  # [MODIFICATO] Aggiornato il titolo
+plt.title("Training vs Validation Loss (LSTM Model)")
 plt.legend()
 plt.grid(True)
 plt.show()
@@ -169,7 +163,7 @@ def evaluate_model(model, test_X, test_y, criterion):
 
 # Compute test loss after training
 test_loss = evaluate_model(model, test_X, test_y, criterion)
-print(f"Final Test Loss (LSTM): {test_loss:.4f}")  # [MODIFICATO] Aggiunto LSTM nel messaggio
+print(f"Final Test Loss (LSTM): {test_loss:.4f}")
 
 
 
@@ -201,7 +195,7 @@ plt.plot(actual_values, label="Actual Price", color='blue', linewidth=2)
 plt.plot(predictions, label="Predicted Price", color='red', linestyle='dashed', linewidth=2)
 plt.xlabel("Time")
 plt.ylabel("Price")
-plt.title("Actual vs Predicted Gold Price using LSTM (Test Set)")  # [MODIFICATO] Aggiornato il titolo
+plt.title("Actual vs Predicted Gold Price using LSTM (Test Set)")
 plt.legend()
 plt.grid(True)
 plt.show()

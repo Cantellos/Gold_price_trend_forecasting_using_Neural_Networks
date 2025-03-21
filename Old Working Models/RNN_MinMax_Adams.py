@@ -14,6 +14,7 @@ from pathlib import Path
 # 3: try different initialisation methods
 # 4: try doing fine tuning on the model
 # 5: try different preprocessing data methods
+# 6: try different activation functions
 
 # Load and preprocess the dataset --------------------------------------------
 # Load the dataset
@@ -25,10 +26,10 @@ features = ['Open', 'High', 'Low', 'Close', 'Volume', 'MA_200', 'EMA_12-26', 'EM
 target = 'future_close'
 
 # Split the dataset using the expanding window method
-initial_train_size = int(0.3 * len(data))
-train_data = data.iloc[:initial_train_size]
-val_data = data.iloc[initial_train_size:int(0.7 * len(data))]
-test_data = data.iloc[int(0.7 * len(data)):]
+train_size = int(0.7 * len(data))
+train_data = data.iloc[:train_size]
+val_data = data.iloc[train_size:int(0.85 * len(data))]
+test_data = data.iloc[int(0.85 * len(data)):]
 
 
 
@@ -88,7 +89,7 @@ class RNN(nn.Module):
 
 
 # Set hyperparameters and instantiate the model ------------------------------
-input_size = train_X.shape[2] # Exclude the target variable
+input_size = train_X.shape[2] # Number of features (only training data, not target variable)
 hidden_size = 128
 num_layers = 1
 num_epochs = 50
@@ -103,11 +104,11 @@ class MAPELoss(nn.Module):
 # Instantiate the model, define loss function and optimizer
 model = RNN(input_size, hidden_size, num_layers, output_size)
 
-criterion = nn.MSELoss()      # Mean Squared Error: sensibile agli outliers, per non sbagliare mai troppo
-# criterion = nn.SmoothL1Loss()   # Huber Loss: robusto agli outliers, ma meno sensibile ai picchi rispetto all'MSE
+# criterion = nn.MSELoss()      # Mean Squared Error: sensibile agli outliers, per non sbagliare mai troppo
+criterion = nn.SmoothL1Loss()   # Huber Loss: robusto agli outliers, ma meno sensibile ai picchi rispetto all'MSE
 # criterion = MAPELoss()        # Mean Absolute Percentage Error: per valutare le previsioni in termini percentuali
 
-optimizer = optim.RMSprop(model.parameters(), lr)
+optimizer = optim.Adam(model.parameters(), lr)
 
 
 
@@ -173,7 +174,7 @@ def evaluate_model(model, test_X, test_y, criterion):
 
 # Compute test loss after training
 test_loss = evaluate_model(model, test_X, test_y, criterion)
-print(f"Final Test Loss (RNN_MinMax_RMS): {test_loss:.4f}")
+print(f"Final Test Loss (RNN_MinMax_Adam): {test_loss:.4f}")
 
 
 
