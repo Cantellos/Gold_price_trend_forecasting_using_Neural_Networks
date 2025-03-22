@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import pandas as pd
+# pd.options.mode.chained_assignment = None
 import numpy as np
 from sklearn.preprocessing import MinMaxScaler
 import matplotlib.pyplot as plt
@@ -21,6 +22,7 @@ from pathlib import Path
 
 # A: confronta con un fully connected semplice
 # B: prova a analizzare un mese e predirre una settimana (non lavorare sul singolo giorno)
+# C: prova modello online su google con dropout ecc. (ibrido)
 
 # Load and preprocess the dataset --------------------------------------------
 # Load the dataset
@@ -44,6 +46,8 @@ test_data = data.iloc[int(0.85 * len(data)):]
 train_min = {}
 train_max = {}
 
+# TODO check if everrything okay when doing this, because fo the warning (giving eityher a copy or a view)
+
 # Find min and max for each feature on the training data
 for feature in features:
     train_min[feature] = train_data[feature].min()
@@ -51,7 +55,9 @@ for feature in features:
 
 # Apply Min-Max scaling to each feature
 for feature in features:
+    print(train_data[feature].head(1))
     train_data[feature] = 2 * (train_data[feature] - train_min[feature]) / (train_max[feature] - train_min[feature]) - 1
+    print(train_data[feature].head(1))
     val_data[feature] = 2 * (val_data[feature] - train_min[feature]) / (train_max[feature] - train_min[feature]) - 1
     test_data[feature] = 2 * (test_data[feature] - train_min[feature]) / (train_max[feature] - train_min[feature]) - 1
 
