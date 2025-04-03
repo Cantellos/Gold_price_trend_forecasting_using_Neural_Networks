@@ -9,22 +9,6 @@ from pathlib import Path
 
 pd.options.mode.copy_on_write = True
 
-# TODO 
-# 1: split the dataset using the expanding window method 
-# 2: try different data normalisation methods
-# 3: try generalisation on other datasets (saving the model and loading it)
-# 4: try different initialisation methods
-# 5: try doing fine tuning on the model
-# 6: try different preprocessing data methods
-# 7: try different activation functions
-# 8: add Dropout levels
-# 9: add scheduler per ridurre il learning rate quando la loss si stabilizza
-# 10: change hyperparameters (hidden_size, num_layers, num_epochs, lr)
-
-# A: confronta con un fully connected semplice
-# B: prova a analizzare un mese e predirre una settimana (non lavorare sul singolo giorno)
-# C: prova modello online su google con dropout ecc. (ibrido)
-
 # Load and preprocess the dataset --------------------------------------------
 # Load the dataset
 file_path = (Path(__file__).resolve().parent.parent / '.data' / 'dataset' / 'XAU_1d_data_2004_to_2024-09-20.csv').as_posix()
@@ -189,34 +173,3 @@ def evaluate_model(model, test_X, test_y, criterion):
 # Compute test loss after training
 test_loss = evaluate_model(model, test_X, test_y, criterion)
 print(f"Final Test Loss (RNN_MinMax): {test_loss:.4f}")
-
-
-
-# Inverse transform the predictions for graphical evaluation ------------------------------------------
-# Get predictions on test set
-model.eval()
-predictions = []
-actual_values = []
-
-with torch.no_grad():
-    for i in range(len(test_X)):
-        x_test = test_X[i].unsqueeze(0)
-        y_test = test_y[i].unsqueeze(0)
-        pred = model(x_test)
-        predictions.append(pred.item())
-        actual_values.append(y_test.item())
-
-# Convert to original price scale
-predictions = inverse_transform(np.array(predictions), target_min, target_max)
-actual_values = inverse_transform(np.array(actual_values), target_min, target_max)
-
-# Plot Actual vs Predicted Prices
-plt.figure(figsize=(12, 6))
-plt.plot(actual_values, label="Actual Price", color='blue')
-plt.plot(predictions, label="Predicted Price", color='red')
-plt.xlabel("Time")
-plt.ylabel("Price")
-plt.title("Actual vs Predicted Price (Test Set)")
-plt.legend()
-plt.grid(True)
-plt.show()

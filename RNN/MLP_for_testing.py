@@ -22,7 +22,7 @@ scaler = MinMaxScaler()
 data[features] = scaler.fit_transform(data[features])
 
 # Split dataset (70% train, 15% val, 15% test)
-train_size = int(len(data) * 0.7)
+train_size = int(len(data) * 0.7)   
 val_size = int(len(data) * 0.15)
 
 train_data = data[:train_size]

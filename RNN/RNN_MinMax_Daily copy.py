@@ -9,25 +9,9 @@ from pathlib import Path
 
 pd.options.mode.copy_on_write = True
 
-# TODO 
-# 1: split the dataset using the expanding window method 
-# 2: try different data normalisation methods
-# 3: try generalisation on other datasets (saving the model and loading it)
-# 4: try different initialisation methods
-# 5: try doing fine tuning on the model
-# 6: try different preprocessing data methods
-# 7: try different activation functions
-# 8: add Dropout levels
-# 9: add scheduler per ridurre il learning rate quando la loss si stabilizza
-# 10: change hyperparameters (hidden_size, num_layers, num_epochs, lr)
-
-# A: confronta con un fully connected semplice
-# B: prova a analizzare un mese e predirre una settimana (non lavorare sul singolo giorno)
-# C: prova modello online su google con dropout ecc. (ibrido)
-
 # Load and preprocess the dataset --------------------------------------------
 # Load the dataset
-file_path = (Path(__file__).resolve().parent.parent / '.data' / 'dataset' / 'XAU_15m_data_2004_to_2024-09-20.csv').as_posix()
+file_path = (Path(__file__).resolve().parent.parent / '.data' / 'dataset' / 'XAU_1d_data_2004_to_2024-09-20.csv').as_posix()
 data = pd.read_csv(file_path)
 
 # Separate features and target
@@ -126,6 +110,7 @@ optimizer = optim.RMSprop(model.parameters(), lr)
 
 # Define the training function ------------------------------------------------
 def train_model(model, train_X, train_y, val_X, val_y, criterion, optimizer, num_epochs):
+    from RNN_MinMax_Daily import inverse_transform
     train_losses = []
     val_losses = []
     
@@ -136,22 +121,22 @@ def train_model(model, train_X, train_y, val_X, val_y, criterion, optimizer, num
         loss = criterion(output, train_y)
         loss.backward()
         optimizer.step()
-        train_losses.append(loss.item())
+        train_losses.append(inverse_transform(loss.item(), target_min, target_max))
 
         model.eval()
         with torch.no_grad():
             val_output = model(val_X)
             val_loss = criterion(val_output, val_y)
-            val_losses.append(val_loss.item())
+            val_losses.append(inverse_transform(val_loss.item(), target_min, target_max))
 
-        if (epoch + 1) % 10 == 0:
-            print(f'Epoch {epoch + 1}/{num_epochs}, Train Loss: {inverse_transform(loss.item(), target_min, target_max):.4f}, Val Loss: {inverse_transform(val_loss.item(), target_min, target_max):.4f}')
-
-# Inverse transform the normalized values back to original price scale
-        def inverse_transform(preds, min_val, max_val):
-            return (preds + 1) * (max_val - min_val) / 2 + min_val
+        
+        print(f'Epoch {epoch + 1}/{num_epochs}, Train Loss: {inverse_transform(loss.item(), target_min, target_max):.4f}, Val Loss: {inverse_transform(val_loss.item(), target_min, target_max):.4f}')
 
     return train_losses, val_losses
+
+# Inverse transform the normalized values back to original price scale
+def inverse_transform(preds, min_val, max_val):
+    return (preds + 1) * (max_val - min_val) / 2 + min_val
 
 
 
@@ -170,15 +155,12 @@ plt.grid(True)
 plt.show()
 
 
-# Inverse transform the normalized values back to original price scale
-def inverse_transform(preds, min_val, max_val):
-    return (preds + 1) * (max_val - min_val) / 2 + min_val
 
-# Get predictions on test set
-model.eval()
-test_loss = 0.0
+# Evaluate the model on the test set ------------------------------------------
 predictions = []
 actual_values = []
+model.eval()
+test_loss = 0.0
 
 with torch.no_grad():
     for i in range(len(test_X)):
