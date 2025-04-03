@@ -24,6 +24,8 @@ pd.options.mode.copy_on_write = True
 # A: confronta con un fully connected semplice
 # B: prova a analizzare un mese e predirre una settimana (non lavorare sul singolo giorno)
 # C: prova modello online su google con dropout ecc. (ibrido)
+# D: prova latri tipi di loss (accuracy e regression (% di predizioni giuste/totale))
+
 
 # Load and preprocess the dataset --------------------------------------------
 # Load the dataset
