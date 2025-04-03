@@ -145,8 +145,12 @@ def train_model(model, train_X, train_y, val_X, val_y, criterion, optimizer, num
             val_losses.append(val_loss.item())
 
         if (epoch + 1) % 10 == 0:
-            print(f'Epoch {epoch + 1}/{num_epochs}, Train Loss: {loss.item():.4f}, Val Loss: {val_loss.item():.4f}')
-    
+            print(f'Epoch {epoch + 1}/{num_epochs}, Train Loss: {inverse_transform(loss.item(), target_min, target_max):.4f}, Val Loss: {inverse_transform(val_loss.item(), target_min, target_max):.4f}')
+
+# Inverse transform the normalized values back to original price scale
+        def inverse_transform(preds, min_val, max_val):
+            return (preds + 1) * (max_val - min_val) / 2 + min_val
+
     return train_losses, val_losses
 
 
@@ -166,35 +170,13 @@ plt.grid(True)
 plt.show()
 
 
-# Evaluate the model on the test set ------------------------------------------
-def evaluate_model(model, test_X, test_y, criterion):
-    model.eval()
-    test_loss = 0.0
-    with torch.no_grad():
-        for i in range(len(test_X)):
-            x_test = test_X[i].unsqueeze(0)
-            y_test = test_y[i].unsqueeze(0)
-            output = model(x_test)
-            loss = criterion(output, y_test)
-            test_loss += loss.item()
-    
-    # Calculate Average Loss
-    test_loss /= len(test_X)
-    return test_loss
-
-# Compute test loss after training
-test_loss = evaluate_model(model, test_X, test_y, criterion)
-print(f"Final Test Loss (RNN_MinMax): {test_loss:.4f}")
-
-
-
-# Inverse transform the predictions for graphical evaluation ------------------------------------------
 # Inverse transform the normalized values back to original price scale
 def inverse_transform(preds, min_val, max_val):
     return (preds + 1) * (max_val - min_val) / 2 + min_val
 
 # Get predictions on test set
 model.eval()
+test_loss = 0.0
 predictions = []
 actual_values = []
 
@@ -202,18 +184,22 @@ with torch.no_grad():
     for i in range(len(test_X)):
         x_test = test_X[i].unsqueeze(0)
         y_test = test_y[i].unsqueeze(0)
-        pred = model(x_test)
-        predictions.append(pred.item())
-        actual_values.append(y_test.item())
 
-# Convert to original price scale
-predictions = inverse_transform(np.array(predictions), target_min, target_max)
-actual_values = inverse_transform(np.array(actual_values), target_min, target_max)
+        pred = model(x_test)
+        loss = criterion(pred.view(-1), y_test.view(-1))
+        test_loss += loss.item()
+
+        predictions.append(inverse_transform(pred.item(), target_min, target_max))
+        actual_values.append(inverse_transform(y_test.item(), target_min, target_max))
+
+final_test_loss = test_loss / len(test_data)
+final_test_loss = inverse_transform(final_test_loss, target_min, target_max)
+print(f'\nFinal Test Loss (RNN_MinMax): {final_test_loss:.6f}')
 
 # Plot Actual vs Predicted Prices
 plt.figure(figsize=(12, 6))
-plt.plot(actual_values, label="Actual Price", color='blue', linewidth=2)
-plt.plot(predictions, label="Predicted Price", color='red', linestyle='dashed', linewidth=2)
+plt.plot(actual_values, label="Actual Price", color='blue')
+plt.plot(predictions, label="Predicted Price", color='red')
 plt.xlabel("Time")
 plt.ylabel("Price")
 plt.title("Actual vs Predicted Price (Test Set)")

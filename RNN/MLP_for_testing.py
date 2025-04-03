@@ -44,7 +44,7 @@ class FullyConnected(nn.Module):
         return out
 
 input_size = len(features)
-hidden_size = 64
+hidden_size = 128
 output_size = 1
 
 model = FullyConnected(input_size, hidden_size, output_size)
@@ -124,14 +124,15 @@ with torch.no_grad():
         actuals.append(y_test.item())
 
 final_test_loss = test_loss / len(test_data)
-print(f'\nFinal Test Loss (MSE): {final_test_loss:.6f}')
+print(f'\nFinal Test Loss (MLP): {final_test_loss:.6f}')
 
-# ===== 8. Plot Predicted vs Actual sul Test Set =====
-plt.figure(figsize=(10, 5))
+# Plot Actual vs Predicted Prices
+plt.figure(figsize=(12, 6))
 plt.plot(actuals, label='Actual', color='blue')
 plt.plot(predictions, label='Predicted', color='red')
+plt.xlabel("Time")
+plt.ylabel("Price")
+plt.title('Actual vs Predict Price (Test Set)')
 plt.legend()
-plt.title('Actual vs Predicted on Test Set')
-plt.xlabel('Time Steps')
-plt.ylabel('Future Close Price')
+plt.grid(True)
 plt.show()
