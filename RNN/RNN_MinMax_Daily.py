@@ -61,8 +61,8 @@ for feature in features:
     test_data[feature] = 2 * (test_data[feature] - train_min[feature]) / (train_max[feature] - train_min[feature]) - 1
 
 # Normalize target variable separately
-target_min = train_data[target].min()
-target_max = train_data[target].max()
+target_min = test_data[target].min()
+target_max = test_data[target].max()
 
 train_data[target] = 2 * (train_data[target] - target_min) / (target_max - target_min) - 1
 val_data[target] = 2 * (val_data[target] - target_min) / (target_max - target_min) - 1

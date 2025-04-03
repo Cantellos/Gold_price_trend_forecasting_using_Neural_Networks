@@ -11,7 +11,7 @@ pd.options.mode.copy_on_write = True
 
 # Load and preprocess the dataset --------------------------------------------
 # Load the dataset
-file_path = (Path(__file__).resolve().parent.parent / '.data' / 'dataset' / 'XAU_1d_data_2004_to_2024-09-20.csv').as_posix()
+file_path = (Path(__file__).resolve().parent.parent / '.data' / 'dataset' / 'XAU_15m_data_2004_to_2024-09-20.csv').as_posix()
 data = pd.read_csv(file_path)
 
 # Separate features and target
@@ -45,8 +45,8 @@ for feature in features:
     test_data[feature] = 2 * (test_data[feature] - train_min[feature]) / (train_max[feature] - train_min[feature]) - 1
 
 # Normalize target variable separately
-target_min = train_data[target].min()
-target_max = train_data[target].max()
+target_min = test_data[target].min()
+target_max = test_data[target].max()
 
 train_data[target] = 2 * (train_data[target] - target_min) / (target_max - target_min) - 1
 val_data[target] = 2 * (val_data[target] - target_min) / (target_max - target_min) - 1
@@ -174,8 +174,8 @@ with torch.no_grad():
         predictions.append(inverse_transform(pred.item(), target_min, target_max))
         actual_values.append(inverse_transform(y_test.item(), target_min, target_max))
 
-final_test_loss = test_loss / len(test_data)
-final_test_loss = inverse_transform(final_test_loss, target_min, target_max)
+
+final_test_loss = inverse_transform(test_loss, target_min, target_max) / len(test_data)
 print(f'\nFinal Test Loss (RNN_MinMax): {final_test_loss:.6f}')
 
 # Plot Actual vs Predicted Prices
