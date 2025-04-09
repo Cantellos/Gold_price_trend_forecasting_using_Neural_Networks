@@ -7,12 +7,29 @@ from sklearn.preprocessing import MinMaxScaler
 import matplotlib.pyplot as plt
 from pathlib import Path
 
+pd.options.mode.copy_on_write = True
+
 # TODO 
 # 1: split the dataset using the expanding window method 
+# 2: try different data normalisation methods
+# 3: try generalisation on other datasets (saving the model and loading it)
+# 4: try different initialisation methods
+# 5: try doing fine tuning on the model
+# 6: try different preprocessing data methods
+# 7: try different activation functions
+# 8: add Dropout levels
+# 9: add scheduler per ridurre il learning rate quando la loss si stabilizza
+# 10: change hyperparameters (hidden_size, num_layers, num_epochs, lr)
+
+# A: confronta con un fully connected semplice
+# B: prova a analizzare un mese e predirre una settimana (non lavorare sul singolo giorno)
+# C: prova modello online su google con dropout ecc. (ibrido)
+# D: prova latri tipi di loss (accuracy e regression (% di predizioni giuste/totale))
+
 
 # Load and preprocess the dataset --------------------------------------------
 # Load the dataset
-file_path = (Path(__file__).resolve().parent.parent / '.data' / 'dataset' / 'XAU_15m_data_2004_to_2024-09-20.csv').as_posix()
+file_path = (Path(__file__).resolve().parent.parent / '.data' / 'dataset' / 'XAU_1d_data_2004_to_2024-09-20.csv').as_posix()
 data = pd.read_csv(file_path)
 
 # Separate features and target
@@ -32,6 +49,8 @@ test_data = data.iloc[int(0.85 * len(data)):]
 train_min = {}
 train_max = {}
 
+# TODO check if everrything okay when doing this, because fo the warning (giving eityher a copy or a view)
+
 # Find min and max for each feature on the training data
 for feature in features:
     train_min[feature] = train_data[feature].min()
@@ -44,8 +63,8 @@ for feature in features:
     test_data[feature] = 2 * (test_data[feature] - train_min[feature]) / (train_max[feature] - train_min[feature]) - 1
 
 # Normalize target variable separately
-target_min = train_data[target].min()
-target_max = train_data[target].max()
+target_min = test_data[target].min()
+target_max = test_data[target].max()
 
 train_data[target] = 2 * (train_data[target] - target_min) / (target_max - target_min) - 1
 val_data[target] = 2 * (val_data[target] - target_min) / (target_max - target_min) - 1
@@ -132,6 +151,10 @@ def train_model(model, train_X, train_y, val_X, val_y, criterion, optimizer, num
     
     return train_losses, val_losses
 
+# Inverse transform the normalized values back to original price scale
+def inverse_transform(preds, min_val, max_val):
+    return (preds + 1) * (max_val - min_val) / 2 + min_val
+
 
 
 # Train the model -------------------------------------------------------------
@@ -147,7 +170,6 @@ plt.title("Training vs Validation Loss")
 plt.legend()
 plt.grid(True)
 plt.show()
-
 
 
 # Evaluate the model on the test set ------------------------------------------
@@ -173,10 +195,6 @@ print(f"Final Test Loss (RNN_MinMax): {test_loss:.4f}")
 
 
 # Inverse transform the predictions for graphical evaluation ------------------------------------------
-# Inverse transform the normalized values back to original price scale
-def inverse_transform(preds, min_val, max_val):
-    return (preds + 1) * (max_val - min_val) / 2 + min_val
-
 # Get predictions on test set
 model.eval()
 predictions = []
@@ -196,8 +214,8 @@ actual_values = inverse_transform(np.array(actual_values), target_min, target_ma
 
 # Plot Actual vs Predicted Prices
 plt.figure(figsize=(12, 6))
-plt.plot(actual_values, label="Actual Price", color='blue', linewidth=2)
-plt.plot(predictions, label="Predicted Price", color='red', linestyle='dashed', linewidth=2)
+plt.plot(actual_values, label="Actual Price", color='blue')
+plt.plot(predictions, label="Predicted Price", color='red')
 plt.xlabel("Time")
 plt.ylabel("Price")
 plt.title("Actual vs Predicted Price (Test Set)")
