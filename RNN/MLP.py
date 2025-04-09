@@ -6,7 +6,13 @@ from sklearn.preprocessing import MinMaxScaler
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-# TODO aumenta numero di epoche
+
+# Imposta il dispositivo per l'esecuzione su GPU se disponibile
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(f"Using device: {device}")
+
+pd.options.mode.copy_on_write = True
+
 
 # ===== 1. Caricamento e Normalizzazione del Dataset =====
 # Carica il dataset
@@ -17,10 +23,6 @@ data = pd.read_csv(file_path)
 features = ['Open', 'High', 'Low', 'Close', 'Volume', 'MA_200', 'EMA_12-26', 'EMA_50-200', '%K', '%D', 'RSI']
 target = 'future_close'
 
-# Normalizzazione feature per feature
-scaler = MinMaxScaler()
-data[features] = scaler.fit_transform(data[features])
-
 # Split dataset (70% train, 15% val, 15% test)
 train_size = int(len(data) * 0.7)   
 val_size = int(len(data) * 0.15)
@@ -28,6 +30,18 @@ val_size = int(len(data) * 0.15)
 train_data = data[:train_size]
 val_data = data[train_size:train_size + val_size]
 test_data = data[train_size + val_size:]
+
+# Normalizzazione feature per feature
+scaler = MinMaxScaler()
+
+# Fit solo sul training set
+scaler.fit(train_data[features])
+
+# Trasforma training, validation e test usando lo stesso scaler
+train_data[features] = scaler.transform(train_data[features])
+val_data[features] = scaler.transform(val_data[features])
+test_data[features] = scaler.transform(test_data[features])
+
 
 # ===== 2. Definizione del MLP (Fully Connected Layer) =====
 class FullyConnected(nn.Module):
@@ -44,12 +58,14 @@ class FullyConnected(nn.Module):
         return out
 
 input_size = len(features)
-hidden_size = 128
+hidden_size = 64
 output_size = 1
+lr=0.001
 
 model = FullyConnected(input_size, hidden_size, output_size)
 criterion = nn.MSELoss()
-optimizer = optim.Adam(model.parameters(), lr=0.001)
+optimizer = optim.RMSprop(model.parameters(), lr)
+
 
 # ===== 3. Funzione di Training =====
 def train_model(model, train_data, val_data, criterion, optimizer, num_epochs):
@@ -91,19 +107,22 @@ def train_model(model, train_data, val_data, criterion, optimizer, num_epochs):
 
     return train_losses, val_losses
 
+
 # ===== 4. Addestramento del modello =====
 num_epochs = 20
 train_losses, val_losses = train_model(model, train_data, val_data, criterion, optimizer, num_epochs)
 
+
 # ===== 5. Plot delle perdite =====
-plt.figure(figsize=(8,5))
-plt.plot(train_losses, label='Train Loss')
-plt.plot(val_losses, label='Validation Loss')
+plt.figure(figsize=(11,6))
+plt.plot(range(3, len(train_losses) + 1), train_losses[2:], label='Train Loss (excluding first 2)', marker='o')
+plt.plot(range(3, len(val_losses) + 1), val_losses[2:], label='Validation Loss (excluding first 2)', marker='s')
 plt.legend()
 plt.xlabel('Epochs')
 plt.ylabel('Loss')
 plt.title('Training and Validation Loss')
 plt.show()
+
 
 # ===== 6. Test finale sul test set =====
 model.eval()
@@ -124,7 +143,22 @@ with torch.no_grad():
         actuals.append(y_test.item())
 
 final_test_loss = test_loss / len(test_data)
-print(f'\nFinal Test Loss (MLP): {final_test_loss:.6f}')
+print(f'\nMSE Loss - Test set (MLP): {final_test_loss:.6f}')
+
+# Accuracy Loss
+def accuracy_based_loss(predictions, targets, threshold):
+    accuracy = 0
+    corrects = 0
+    # Calculate the number of correct predictions within the threshold
+    for length in range(len(predictions)):
+        if abs(predictions[length] - targets[length]) <= threshold*targets[length]:
+            corrects += 1
+    # Calculate the loss as the ratio of incorrect predictions
+    accuracy = corrects / len(predictions)
+    return 1 - accuracy
+
+loss = accuracy_based_loss(predictions, actuals, threshold=0.02)  # 2% tolerance
+print(f'\nAccuracy Loss - Test set (MLP): {loss*100:.6f}%')
 
 # Plot Actual vs Predicted Prices
 plt.figure(figsize=(12, 6))
