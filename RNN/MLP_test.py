@@ -71,6 +71,9 @@ optimizer = optim.RMSprop(model.parameters(), lr)
 def train_model(model, train_data, val_data, criterion, optimizer, num_epochs):
     train_losses = []
     val_losses = []
+    patience = 5  # Number of epochs to wait for improvement
+    best_val_loss = float('inf')
+    epochs_no_improve = 0
 
     for epoch in range(num_epochs):
         model.train()
@@ -105,11 +108,22 @@ def train_model(model, train_data, val_data, criterion, optimizer, num_epochs):
 
         print(f'Epoch {epoch+1}/{num_epochs}, Train Loss: {train_losses[-1]:.6f}, Val Loss: {val_losses[-1]:.6f}')
 
+        # Early stopping condition
+        if val_losses[-1] < best_val_loss:
+            best_val_loss = val_losses[-1]
+            epochs_no_improve = 0
+        else:
+            epochs_no_improve += 1
+
+        if epochs_no_improve >= patience:
+            print(f"Early stopping at epoch {epoch+1} due to no improvement in validation loss for {patience} epochs.")
+            break
+
     return train_losses, val_losses
 
 
 # ===== 4. Addestramento del modello =====
-num_epochs = 20
+num_epochs = 50
 train_losses, val_losses = train_model(model, train_data, val_data, criterion, optimizer, num_epochs)
 
 
@@ -155,9 +169,9 @@ def accuracy_based_loss(predictions, targets, threshold):
             corrects += 1
     # Calculate the loss as the ratio of incorrect predictions
     accuracy = corrects / len(predictions)
-    return 1 - accuracy
+    return accuracy
 
-loss = accuracy_based_loss(predictions, actuals, threshold=0.02)  # 2% tolerance
+loss = accuracy_based_loss(predictions, actuals, threshold=0.02)  # 2,5% tolerance
 print(f'\nAccuracy Loss - Test set (MLP): {loss*100:.6f}%')
 
 # Plot Actual vs Predicted Prices
