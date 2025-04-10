@@ -171,7 +171,7 @@ def accuracy_based_loss(predictions, targets, threshold):
     accuracy = corrects / len(predictions)
     return accuracy
 
-loss = accuracy_based_loss(predictions, actuals, threshold=0.02)  # 2,5% tolerance
+loss = accuracy_based_loss(predictions, actuals, threshold=0.02)  # 2% tolerance
 print(f'\nAccuracy Loss - Test set (MLP): {loss*100:.6f}%')
 
 # Plot Actual vs Predicted Prices
