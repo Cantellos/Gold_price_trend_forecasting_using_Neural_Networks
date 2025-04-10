@@ -131,12 +131,12 @@ train_losses, val_losses = train_model(model, train_data, val_data, criterion, o
 
 # ===== 5. Plot delle perdite =====
 plt.figure(figsize=(11,6))
-plt.plot(range(3, len(train_losses) + 1), train_losses[2:], label='Train Loss (excluding first 2)', marker='o')
-plt.plot(range(3, len(val_losses) + 1), val_losses[2:], label='Validation Loss (excluding first 2)', marker='s')
+plt.plot(range(3, len(train_losses) + 1), train_losses[2:], label='Train Loss', marker='o')
+plt.plot(range(3, len(val_losses) + 1), val_losses[2:], label='Validation Loss', marker='s')
 plt.legend()
 plt.xlabel('Epochs')
 plt.ylabel('Loss')
-plt.title('Training and Validation Loss')
+plt.title('Training and Validation Loss (excluding first 2 for graphic reasons)')
 plt.show()
 
 
@@ -162,7 +162,7 @@ final_test_loss = test_loss / len(test_data)
 print(f'\nMSE Loss - Test set (MLP): {final_test_loss:.6f}')
 
 
-# Accuracy Loss
+# Accuracy Loss for Training
 def accuracy_based_loss(predictions, targets, threshold):
     accuracy = 0
     corrects = 0
@@ -175,19 +175,7 @@ def accuracy_based_loss(predictions, targets, threshold):
     return accuracy
 
 loss = accuracy_based_loss(predictions, actuals, threshold=0.02)  # 2% tolerance
-print(f'\nAccuracy Loss - Test set (MLP): {loss*100:.4f}%')
-
-def regression_accuracy(predictions, targets, threshold=0.01):
-    """
-    Calculates accuracy by checking if predictions are within a threshold of the actual value.
-    """
-    correct = (torch.abs(predictions - targets) < (threshold * torch.abs(targets))).sum().item()
-    total = targets.numel()
-    return correct / total  # Accuracy in percentage
-
-# Example Usage
-accuracy = regression_accuracy(predictions, actuals, threshold=0.02)
-print(f'Accuracy: {accuracy * 100:.4f}%')
+print(f'\nAccuracy - Test set (MLP): {loss*100:.4f}% of correct predictions within 2%\n')
 
 
 # Plot Actual vs Predicted Prices
