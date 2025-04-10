@@ -97,8 +97,10 @@ def train_model(model, train_data, val_data, criterion, optimizer, num_epochs):
         val_loss = 0.0
         with torch.no_grad():
             for i in range(len(val_data)):
-                x_val = torch.tensor(val_data[features].iloc[i].values, dtype=torch.float32).unsqueeze(0)
-                y_val = torch.tensor(val_data[target].iloc[i], dtype=torch.float32).unsqueeze(0)
+                #x_val = torch.tensor(val_data[features].iloc[i].values, dtype=torch.float32).unsqueeze(0)
+                #y_val = torch.tensor(val_data[target].iloc[i], dtype=torch.float32).unsqueeze(0)
+                x_val = torch.tensor(val_data[features].values, dtype=torch.float32)
+                y_val = torch.tensor(val_data[target].values, dtype=torch.float32)  
 
                 output = model(x_val)
                 loss = criterion(output.view(-1), y_val.view(-1))
@@ -159,6 +161,7 @@ with torch.no_grad():
 final_test_loss = test_loss / len(test_data)
 print(f'\nMSE Loss - Test set (MLP): {final_test_loss:.6f}')
 
+
 # Accuracy Loss
 def accuracy_based_loss(predictions, targets, threshold):
     accuracy = 0
@@ -172,7 +175,20 @@ def accuracy_based_loss(predictions, targets, threshold):
     return accuracy
 
 loss = accuracy_based_loss(predictions, actuals, threshold=0.02)  # 2% tolerance
-print(f'\nAccuracy Loss - Test set (MLP): {loss*100:.6f}%')
+print(f'\nAccuracy Loss - Test set (MLP): {loss*100:.4f}%')
+
+def regression_accuracy(predictions, targets, threshold=0.01):
+    """
+    Calculates accuracy by checking if predictions are within a threshold of the actual value.
+    """
+    correct = (torch.abs(predictions - targets) < (threshold * torch.abs(targets))).sum().item()
+    total = targets.numel()
+    return correct / total  # Accuracy in percentage
+
+# Example Usage
+accuracy = regression_accuracy(predictions, actuals, threshold=0.02)
+print(f'Accuracy: {accuracy * 100:.4f}%')
+
 
 # Plot Actual vs Predicted Prices
 plt.figure(figsize=(12, 6))
