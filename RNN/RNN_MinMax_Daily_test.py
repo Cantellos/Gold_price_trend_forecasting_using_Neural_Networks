@@ -7,9 +7,14 @@ from sklearn.preprocessing import MinMaxScaler
 import matplotlib.pyplot as plt
 from pathlib import Path
 
+# Imposta il dispositivo per l'esecuzione su GPU se disponibile
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(f"Using device: {device}")
+
 pd.options.mode.copy_on_write = True
 
-# Load and preprocess the dataset --------------------------------------------
+
+# ===== 1. Caricamento e Normalizzazione del Dataset =====
 # Load the dataset
 file_path = (Path(__file__).resolve().parent.parent / '.data' / 'dataset' / 'XAU_15m_data_2004_to_2024-09-20.csv').as_posix()
 data = pd.read_csv(file_path)
@@ -18,119 +23,87 @@ data = pd.read_csv(file_path)
 features = ['Open', 'High', 'Low', 'Close', 'Volume', 'MA_200', 'EMA_12-26', 'EMA_50-200', '%K', '%D', 'RSI']
 target = 'future_close'
 
-# Split the dataset using the expanding window method
-train_size = int(0.7 * len(data))
-train_data = data.iloc[:train_size]
-val_data = data.iloc[train_size:int(0.85 * len(data))]
-test_data = data.iloc[int(0.85 * len(data)):]
+# Split dataset (70% train, 15% val, 15% test)
+train_size = int(len(data) * 0.7)   
+val_size = int(len(data) * 0.15)
 
+train_data = data[:train_size]
+val_data = data[train_size:train_size + val_size]
+test_data = data[train_size + val_size:]
 
+# Normalize features feature by feature
+scaler = MinMaxScaler()
 
-# Normalize the data using Min-Max scaling (scales data to range [-1, 1]) ------------------------------------
-# Dictionaries to store min and max values for each feature
-train_min = {}
-train_max = {}
+# Fit only on the training set
+scaler.fit(train_data[features])
 
-# TODO check if everrything okay when doing this, because fo the warning (giving eityher a copy or a view)
+# Transform training, validation, and test using the same scaler
+train_data[features] = scaler.transform(train_data[features])
+val_data[features] = scaler.transform(val_data[features])
+test_data[features] = scaler.transform(test_data[features])
 
-# Find min and max for each feature on the training data
-for feature in features:
-    train_min[feature] = train_data[feature].min()
-    train_max[feature] = train_data[feature].max()
-
-# Apply Min-Max scaling to each feature
-for feature in features:
-    train_data[feature] = 2 * (train_data[feature] - train_min[feature]) / (train_max[feature] - train_min[feature]) - 1
-    val_data[feature] = 2 * (val_data[feature] - train_min[feature]) / (train_max[feature] - train_min[feature]) - 1
-    test_data[feature] = 2 * (test_data[feature] - train_min[feature]) / (train_max[feature] - train_min[feature]) - 1
-
-# Normalize target variable separately
-target_min = test_data[target].min()
-target_max = test_data[target].max()
-
-train_data[target] = 2 * (train_data[target] - target_min) / (target_max - target_min) - 1
-val_data[target] = 2 * (val_data[target] - target_min) / (target_max - target_min) - 1
-test_data[target] = 2 * (test_data[target] - target_min) / (target_max - target_min) - 1
-
-
-
-# Convert data to PyTorch tensors --------------------------------------------
-def create_tensor_dataset(df, features, target):
-    # Add dimension to ensure the correct shape for RNN input
-    X = torch.tensor(df[features].values, dtype=torch.float32).unsqueeze(1)
-    y = torch.tensor(df[target].values, dtype=torch.float32).unsqueeze(1)
-    return X, y
-
-train_X, train_y = create_tensor_dataset(train_data, features, target)
-val_X, val_y = create_tensor_dataset(val_data, features, target)
-test_X, test_y = create_tensor_dataset(test_data, features, target)
-
-
-
-# Define the RNN model -------------------------------------------------------
+    
+# ===== 2. Definition of the MLP (Fully Connected Layer) =====
 class RNN(nn.Module):
     def __init__(self, input_size, hidden_size, num_layers, output_size):
         super(RNN, self).__init__()
-        self.hidden_size = hidden_size
-        self.num_layers = num_layers
         self.rnn = nn.RNN(input_size, hidden_size, num_layers, batch_first=True)
         self.fc = nn.Linear(hidden_size, output_size)
 
     def forward(self, x):
-        h0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(x.device)
-        out, _ = self.rnn(x, h0)
+        out, _ = self.rnn(x)
         out = self.fc(out[:, -1, :])
         return out
 
 
-
-# Set hyperparameters and instantiate the model ------------------------------
-input_size = train_X.shape[2] # Number of features (only training data, not target variable)
-hidden_size = 128
+# Set hyperparameters and instantiate the model
+input_size = len(features)
+hidden_size = 64
 num_layers = 1
-num_epochs = 50
 output_size = 1
 lr = 0.001
 
 # Instantiate the model, define loss function and optimizer
 model = RNN(input_size, hidden_size, num_layers, output_size)
-
-class MAPELoss(nn.Module):
-    def forward(self, y_pred, y_true):
-        epsilon = 1e-8  # per evitare divisioni per zero
-        return torch.mean(torch.abs((y_true - y_pred) / (y_true + epsilon))) * 100
-
-criterion = nn.MSELoss()        # Mean Squared Error: sensibile agli outliers, per non sbagliare mai troppo
-# criterion = nn.SmoothL1Loss() # Huber Loss: robusto agli outliers, ma meno sensibile ai picchi rispetto all'MSE
-# criterion = MAPELoss()        # Mean Absolute Percentage Error: per valutare le previsioni in termini percentuali
-
+criterion = nn.MSELoss()
 optimizer = optim.RMSprop(model.parameters(), lr)
-# optimizer = optim.Adam(model.parameters(), lr)
 
 
-# Define the training function ------------------------------------------------
-def train_model(model, train_X, train_y, val_X, val_y, criterion, optimizer, num_epochs):
-    from RNN.TODO_upgrades.RNN_MinMax_Daily_NEW import inverse_transform
+# ===== 3. Training Function =====
+def train_model(model, train_X, train_y, val_X, val_y, criterion, optimizer, num_epochs, batch_size):
     train_losses = []
     val_losses = []
-    
+    patience = 5  # Number of epochs to wait for improvement
+    best_val_loss = float('inf')
+    epochs_no_improve = 0
+
     for epoch in range(num_epochs):
         model.train()
-        optimizer.zero_grad()
-        output = model(train_X)
-        loss = criterion(output, train_y)
-        loss.backward()
-        optimizer.step()
-        train_losses.append(inverse_transform(loss.item(), target_min, target_max))
+        train_loss = 0.0
+
+        for i in range(0, len(train_X), batch_size):
+            batch_X = train_X[i:i + batch_size]
+            batch_y = train_y[i:i + batch_size]
+
+            optimizer.zero_grad()
+            output = model(batch_X)
+            loss = criterion(output, batch_y)
+            loss.backward()
+            optimizer.step()
+
+            train_loss += loss.item()
+        
+        
+        train_losses.append(train_loss / len(train_X) // batch_size)
 
         model.eval()
         with torch.no_grad():
             val_output = model(val_X)
             val_loss = criterion(val_output, val_y)
-            val_losses.append(inverse_transform(val_loss.item(), target_min, target_max))
+            val_losses.append(val_loss.item())
 
         
-        print(f'Epoch {epoch + 1}/{num_epochs}, Train Loss: {inverse_transform(loss.item(), target_min, target_max):.4f}, Val Loss: {inverse_transform(val_loss.item(), target_min, target_max):.4f}')
+        print(f'Epoch {epoch + 1}/{num_epochs}, Train Loss: {loss.item():.4f}, Val Loss: {val_loss.item():.4f}')
 
     return train_losses, val_losses
 
@@ -141,7 +114,9 @@ def inverse_transform(preds, min_val, max_val):
 
 
 # Train the model -------------------------------------------------------------
-train_losses, val_losses = train_model(model, train_X, train_y, val_X, val_y, criterion, optimizer, num_epochs)
+num_epochs = 50
+batch_size=32
+train_losses, val_losses = train_model(model, train_X, train_y, val_X, val_y, criterion, optimizer, num_epochs, batch_size)
 
 # Plot the training and validation loss
 plt.figure(figsize=(8, 5))
@@ -156,23 +131,6 @@ plt.show()
 
 
 
-# Evaluate the model on the test set ------------------------------------------
-predictions = []
-actual_values = []
-model.eval()
-test_loss = 0.0
-
-with torch.no_grad():
-    for i in range(len(test_X)):
-        x_test = test_X[i].unsqueeze(0)
-        y_test = test_y[i].unsqueeze(0)
-
-        pred = model(x_test)
-        loss = criterion(pred.view(-1), y_test.view(-1))
-        test_loss += loss.item()
-
-        predictions.append(inverse_transform(pred.item(), target_min, target_max))
-        actual_values.append(inverse_transform(y_test.item(), target_min, target_max))
 
 
 final_test_loss = inverse_transform(test_loss, target_min, target_max) / len(test_data)
