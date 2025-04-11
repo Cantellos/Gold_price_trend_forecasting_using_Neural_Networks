@@ -16,7 +16,7 @@ pd.options.mode.copy_on_write = True
 
 # ===== 1. Caricamento e Normalizzazione del Dataset =====
 # Load the dataset
-file_path = (Path(__file__).resolve().parent.parent / '.data' / 'dataset' / 'XAU_15m_data_2004_to_2024-09-20.csv').as_posix()
+file_path = (Path(__file__).resolve().parent.parent / '.data' / 'dataset' / 'XAU_1d_data_2004_to_2024-09-20.csv').as_posix()
 data = pd.read_csv(file_path)
 
 # Separate features and target
@@ -42,7 +42,7 @@ train_data[features] = scaler.transform(train_data[features])
 val_data[features] = scaler.transform(val_data[features])
 test_data[features] = scaler.transform(test_data[features])
 
-    
+
 # ===== 2. Definition of the MLP (Fully Connected Layer) =====
 class RNN(nn.Module):
     def __init__(self, input_size, hidden_size, num_layers, output_size):
@@ -52,7 +52,7 @@ class RNN(nn.Module):
 
     def forward(self, x):
         out, _ = self.rnn(x)
-        out = self.fc(out[:, -1, :])
+        out = self.fc(out[:, -1])  # Adjust indexing to match the tensor's dimensions
         return out
 
 
@@ -82,57 +82,100 @@ def train_model(model, train_X, train_y, val_X, val_y, criterion, optimizer, num
         train_loss = 0.0
 
         for i in range(0, len(train_X), batch_size):
-            batch_X = train_X[i:i + batch_size]
-            batch_y = train_y[i:i + batch_size]
+            x_train = torch.tensor(train_data[features].values, dtype=torch.float32).unsqueeze(1)  # Add sequence dimension
+            y_train = torch.tensor(train_data[target].values, dtype=torch.float32).unsqueeze(1)
 
             optimizer.zero_grad()
-            output = model(batch_X)
-            loss = criterion(output, batch_y)
+            output = model(x_train)
+            loss = criterion(output, y_train)
             loss.backward()
             optimizer.step()
-
             train_loss += loss.item()
         
         train_losses.append(train_loss / len(train_X) // batch_size)
 
+        # Validation
         model.eval()
+        val_loss = 0.0
         with torch.no_grad():
-            val_output = model(val_X)
-            val_loss = criterion(val_output, val_y)
-            val_losses.append(val_loss.item())
+            for i in range(0, len(val_X), batch_size):
+                x_val = torch.tensor(val_data[features].values, dtype=torch.float32).unsqueeze(1)  # Add sequence dimension
+                y_val = torch.tensor(val_data[target].values, dtype=torch.float32).unsqueeze(1)
 
-        print(f'Epoch {epoch + 1}/{num_epochs}, Train Loss: {loss.item():.4f}, Val Loss: {val_loss.item():.4f}')
+                output = model(x_val)
+                loss = criterion(output, y_val)
+                val_loss += loss.item()
+
+            val_losses.append(val_loss / len(val_X) // batch_size)
+
+        print(f'Epoch {epoch+1}/{num_epochs}, Train Loss: {train_losses[-1]:.6f}, Val Loss: {val_losses[-1]:.6f}')
+
+        # Early stopping condition
+        if val_losses[-1] < best_val_loss:
+            best_val_loss = val_losses[-1]
+            epochs_no_improve = 0
+        else:
+            epochs_no_improve += 1
+
+        if epochs_no_improve >= patience:
+            print(f"Early stopping at epoch {epoch+1} due to no improvement in validation loss for {patience} epochs.")
+            break
 
     return train_losses, val_losses
 
-# Inverse transform the normalized values back to original price scale
-def inverse_transform(preds, min_val, max_val):
-    return (preds + 1) * (max_val - min_val) / 2 + min_val
 
-
-
-# Train the model -------------------------------------------------------------
-num_epochs = 50
+# ===== 4. Training the Model =====
+num_epochs = 150
 batch_size=32
-train_losses, val_losses = train_model(model, train_X, train_y, val_X, val_y, criterion, optimizer, num_epochs, batch_size)
+train_losses, val_losses = train_model(model, train_data[features], train_data[target], val_data[features], val_data[target], criterion, optimizer, num_epochs, batch_size)
 
-# Plot the training and validation loss
+
+# ===== 5. Plotting the Losses =====
 plt.figure(figsize=(8, 5))
-plt.plot(range(1, len(train_losses) + 1), train_losses, label="Training Loss", marker="o")
-plt.plot(range(1, len(val_losses) + 1), val_losses, label="Validation Loss", marker="s")
-plt.xlabel("Epoch")
-plt.ylabel("Loss")
-plt.title("Training vs Validation Loss")
+plt.plot(range(1, len(train_losses) + 1), train_losses, label='Train Loss', marker='o')
+plt.plot(range(1, len(val_losses) + 1), val_losses, label='Validation Loss', marker='s')
 plt.legend()
-plt.grid(True)
+plt.xlabel('Epochs')
+plt.ylabel('Loss')
+plt.title('Training and Validation Loss (excluding first 1 for graphic reasons)')
 plt.show()
 
 
+# ===== 6. Testing the Model =====
+model.eval()
+test_loss = 0.0
+predictions = []
+actuals = []
+# MSE Loss
+with torch.no_grad():
+    for i in range(len(test_data)):
+        x_test = torch.tensor(test_data[features].values, dtype=torch.float32).unsqueeze(1)  # Add sequence dimension
+        y_test = torch.tensor(test_data[target].values, dtype=torch.float32).unsqueeze(1)
 
+        output = model(x_test)
+        loss = criterion(output, y_test)
+        test_loss += loss.item()
 
+        predictions.append(output.item())
+        actuals.append(y_test.item())
 
-final_test_loss = inverse_transform(test_loss, target_min, target_max) / len(test_data)
-print(f'\nFinal Test Loss (RNN_MinMax): {final_test_loss:.6f}')
+final_test_loss = test_loss / len(test_data)
+print(f'\nMSE Loss - Test set (MLP): {final_test_loss:.6f}')
+
+# Accuracy Loss
+def accuracy_based_loss(predictions, targets, threshold):
+    accuracy = 0
+    corrects = 0
+    # Calculate the number of correct predictions within the threshold
+    for length in range(len(predictions)):
+        if abs(predictions[length] - targets[length]) <= threshold*targets[length]:
+            corrects += 1
+    # Calculate the loss as the ratio of incorrect predictions
+    accuracy = corrects / len(predictions)
+    return accuracy
+
+loss = accuracy_based_loss(predictions, actuals, threshold=0.02)  # 2% tolerance
+print(f'\nAccuracy - Test set (MLP): {loss*100:.4f}% of correct predictions within 2%\n')
 
 # Plot Actual vs Predicted Prices
 plt.figure(figsize=(12, 6))
