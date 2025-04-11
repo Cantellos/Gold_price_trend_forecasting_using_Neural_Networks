@@ -93,7 +93,6 @@ def train_model(model, train_X, train_y, val_X, val_y, criterion, optimizer, num
 
             train_loss += loss.item()
         
-        
         train_losses.append(train_loss / len(train_X) // batch_size)
 
         model.eval()
@@ -102,7 +101,6 @@ def train_model(model, train_X, train_y, val_X, val_y, criterion, optimizer, num
             val_loss = criterion(val_output, val_y)
             val_losses.append(val_loss.item())
 
-        
         print(f'Epoch {epoch + 1}/{num_epochs}, Train Loss: {loss.item():.4f}, Val Loss: {val_loss.item():.4f}')
 
     return train_losses, val_losses
