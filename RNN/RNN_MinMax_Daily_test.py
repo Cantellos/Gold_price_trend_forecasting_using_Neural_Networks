@@ -31,16 +31,22 @@ train_data = data[:train_size]
 val_data = data[train_size:train_size + val_size]
 test_data = data[train_size + val_size:]
 
-# Normalize features feature by feature
+# Normalize features using Min-Max scaling
 scaler = MinMaxScaler()
 
-# Fit only on the training set
+# Fit only on the training set, but transform all of them using the same scaler
 scaler.fit(train_data[features])
 
-# Transform training, validation, and test using the same scaler
 train_data[features] = scaler.transform(train_data[features])
 val_data[features] = scaler.transform(val_data[features])
 test_data[features] = scaler.transform(test_data[features])
+
+# Normalize target variable (future_close) separately
+scaler.fit(train_data[target].values.reshape(-1, 1))
+
+train_data[target] = scaler.transform(train_data[[target]])
+val_data[target] = scaler.transform(val_data[[target]])
+test_data[target] = scaler.transform(test_data[[target]])
 
 
 # ===== 2. Definition of the MLP (Fully Connected Layer) =====
@@ -156,8 +162,8 @@ with torch.no_grad():
         loss = criterion(output, y_test)
         test_loss += loss.item()
 
-        predictions.append(output.item())
-        actuals.append(y_test.item())
+        predictions.extend(output.squeeze().tolist())  # Convert to a list of scalars and extend the predictions list
+        actuals.extend(y_test.squeeze().tolist())   
 
 final_test_loss = test_loss / len(test_data)
 print(f'\nMSE Loss - Test set (MLP): {final_test_loss:.6f}')
@@ -179,7 +185,7 @@ print(f'\nAccuracy - Test set (MLP): {loss*100:.4f}% of correct predictions with
 
 # Plot Actual vs Predicted Prices
 plt.figure(figsize=(12, 6))
-plt.plot(actual_values, label="Actual Price", color='blue')
+plt.plot(actuals, label="Actual Price", color='blue')
 plt.plot(predictions, label="Predicted Price", color='red')
 plt.xlabel("Time")
 plt.ylabel("Price")
