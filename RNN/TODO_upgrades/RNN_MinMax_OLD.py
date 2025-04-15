@@ -68,13 +68,12 @@ val_data[target] = 2 * (val_data[target] - target_min) / (target_max - target_mi
 test_data[target] = 2 * (test_data[target] - target_min) / (target_max - target_min) - 1
 
 
-
 # Convert data to PyTorch tensors --------------------------------------------
 def create_tensor_dataset(df, features, target):
     # Add dimension to ensure the correct shape for RNN input
-    X = torch.tensor(df[features].values, dtype=torch.float32).unsqueeze(1)
+    x = torch.tensor(df[features].values, dtype=torch.float32).unsqueeze(1)
     y = torch.tensor(df[target].values, dtype=torch.float32).unsqueeze(1)
-    return X, y
+    return x, y
 
 train_X, train_y = create_tensor_dataset(train_data, features, target)
 val_X, val_y = create_tensor_dataset(val_data, features, target)

@@ -27,38 +27,54 @@ target = 'future_close'
 train_size = int(len(data) * 0.7)   
 val_size = int(len(data) * 0.15)
 
-train_data = data[:train_size]
-val_data = data[train_size:train_size + val_size]
-test_data = data[train_size + val_size:]
+training= data[:train_size]
+validation = data[train_size:train_size + val_size]
+testing = data[train_size + val_size:]
 
 # Normalize features using Min-Max scaling
 scaler = MinMaxScaler()
 
 # Fit only on the training set, but transform all of them using the same scaler
-scaler.fit(train_data[features])
+scaler.fit(training[features])
 
-train_data[features] = scaler.transform(train_data[features])
-val_data[features] = scaler.transform(val_data[features])
-test_data[features] = scaler.transform(test_data[features])
+train_data = scaler.transform(training[features])
+val_data = scaler.transform(validation[features])
+test_data = scaler.transform(testing[features])
 
 # Normalize target variable (future_close) separately
-scaler.fit(train_data[target].values.reshape(-1, 1))
+scaler.fit(training[[target]])
 
-train_data[target] = scaler.transform(train_data[[target]])
-val_data[target] = scaler.transform(val_data[[target]])
-test_data[target] = scaler.transform(test_data[[target]])
+train_target = scaler.transform(training[[target]])
+val_target = scaler.transform(validation[[target]])
+test_target = scaler.transform(testing[[target]])
+
+# Convert data to PyTorch tensors
+def create_tensor_dataset(data, target):
+    # Add dimension to ensure the correct shape for RNN input
+    x = torch.tensor(data, dtype=torch.float32).unsqueeze(1)  # Add sequence dimension
+    y = torch.tensor(target, dtype=torch.float32).unsqueeze(1)
+    return x, y
+
+train_X, train_y = create_tensor_dataset(train_data, train_target)
+val_X, val_y = create_tensor_dataset(val_data, val_target)
+test_X, test_y = create_tensor_dataset(test_data, test_target)
+
+
 
 
 # ===== 2. Definition of the MLP (Fully Connected Layer) =====
 class RNN(nn.Module):
     def __init__(self, input_size, hidden_size, num_layers, output_size):
         super(RNN, self).__init__()
+        self.hidden_size = hidden_size
+        self.num_layers = num_layers
         self.rnn = nn.RNN(input_size, hidden_size, num_layers, batch_first=True)
         self.fc = nn.Linear(hidden_size, output_size)
 
     def forward(self, x):
-        out, _ = self.rnn(x)
-        out = self.fc(out[:, -1])  # Adjust indexing to match the tensor's dimensions
+        h0 = torch.zeros(self.num_layers, x.shape[0], self.hidden_size).to(x.device)
+        out, _ = self.rnn(x, h0)
+        out = self.fc(out[:, -1, :])
         return out
 
 
@@ -76,45 +92,30 @@ optimizer = optim.RMSprop(model.parameters(), lr)
 
 
 # ===== 3. Training Function =====
-def train_model(model, train_X, train_y, val_X, val_y, criterion, optimizer, num_epochs, batch_size):
+def train_model(model, train_X, train_y, val_X, val_y, criterion, optimizer, num_epochs):
     train_losses = []
     val_losses = []
     patience = 5  # Number of epochs to wait for improvement
     best_val_loss = float('inf')
     epochs_no_improve = 0
-
+    
     for epoch in range(num_epochs):
         model.train()
-        train_loss = 0.0
+        optimizer.zero_grad()
+        output = model(train_X)  # Add sequence dimension
+        loss = criterion(output, train_y)
+        loss.backward()
+        optimizer.step()
+        train_losses.append(loss.item())
 
-        for i in range(0, len(train_X), batch_size):
-            x_train = torch.tensor(train_data[features].values, dtype=torch.float32).unsqueeze(1)  # Add sequence dimension
-            y_train = torch.tensor(train_data[target].values, dtype=torch.float32).unsqueeze(1)
-
-            optimizer.zero_grad()
-            output = model(x_train)
-            loss = criterion(output, y_train)
-            loss.backward()
-            optimizer.step()
-            train_loss += loss.item()
-        
-        train_losses.append(train_loss / len(train_X) // batch_size)
-
-        # Validation
         model.eval()
-        val_loss = 0.0
         with torch.no_grad():
-            for i in range(0, len(val_X), batch_size):
-                x_val = torch.tensor(val_data[features].values, dtype=torch.float32).unsqueeze(1)  # Add sequence dimension
-                y_val = torch.tensor(val_data[target].values, dtype=torch.float32).unsqueeze(1)
+            val_output = model(val_X)
+            val_loss = criterion(val_output, val_y)
+            val_losses.append(val_loss.item())
 
-                output = model(x_val)
-                loss = criterion(output, y_val)
-                val_loss += loss.item()
-
-            val_losses.append(val_loss / len(val_X) // batch_size)
-
-        print(f'Epoch {epoch+1}/{num_epochs}, Train Loss: {train_losses[-1]:.6f}, Val Loss: {val_losses[-1]:.6f}')
+        if (epoch + 1) % 10 == 0:
+            print(f'Epoch {epoch + 1}/{num_epochs}, Train Loss: {loss.item():.4f}, Val Loss: {val_loss.item():.4f}')
 
         # Early stopping condition
         if val_losses[-1] < best_val_loss:
@@ -131,9 +132,9 @@ def train_model(model, train_X, train_y, val_X, val_y, criterion, optimizer, num
 
 
 # ===== 4. Training the Model =====
-num_epochs = 150
-batch_size=32
-train_losses, val_losses = train_model(model, train_data[features], train_data[target], val_data[features], val_data[target], criterion, optimizer, num_epochs, batch_size)
+num_epochs = 10
+batch_size = 32
+train_losses, val_losses = train_model(model, train_data, train_target, val_data, val_target, criterion, optimizer, num_epochs)
 
 
 # ===== 5. Plotting the Losses =====
@@ -155,8 +156,8 @@ actuals = []
 # MSE Loss
 with torch.no_grad():
     for i in range(len(test_data)):
-        x_test = torch.tensor(test_data[features].values, dtype=torch.float32).unsqueeze(1)  # Add sequence dimension
-        y_test = torch.tensor(test_data[target].values, dtype=torch.float32).unsqueeze(1)
+        x_test = torch.tensor(test_data.values, dtype=torch.float32).unsqueeze(1)  # Add sequence dimension
+        y_test = torch.tensor(test_target.values, dtype=torch.float32).unsqueeze(1)
 
         output = model(x_test)
         loss = criterion(output, y_test)
