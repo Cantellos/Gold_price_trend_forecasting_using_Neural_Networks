@@ -55,9 +55,9 @@ def create_tensor_dataset(data, target):
     y = torch.tensor(target, dtype=torch.float32).unsqueeze(1)
     return x, y
 
-train_X, train_y = create_tensor_dataset(train_data, train_target)
-val_X, val_y = create_tensor_dataset(val_data, val_target)
-test_X, test_y = create_tensor_dataset(test_data, test_target)
+train_x, train_y = create_tensor_dataset(train_data, train_target)
+val_x, val_y = create_tensor_dataset(val_data, val_target)
+test_x, test_y = create_tensor_dataset(test_data, test_target)
 
 
 
@@ -134,7 +134,7 @@ def train_model(model, train_X, train_y, val_X, val_y, criterion, optimizer, num
 # ===== 4. Training the Model =====
 num_epochs = 10
 batch_size = 32
-train_losses, val_losses = train_model(model, train_data, train_target, val_data, val_target, criterion, optimizer, num_epochs)
+train_losses, val_losses = train_model(model, train_x, train_y, val_x, val_y, criterion, optimizer, num_epochs)
 
 
 # ===== 5. Plotting the Losses =====
