@@ -77,13 +77,14 @@ class RNN(nn.Module):
 
 # Set hyperparameters and instantiate the model
 input_size = len(features)
-hidden_size = 64
+hidden_size = 128
 num_layers = 1
 output_size = 1
 lr = 0.001
 
 # Instantiate the model, define loss function and optimizer
 model = RNN(input_size, hidden_size, num_layers, output_size)
+model = model.to(device)
 
 criterion = nn.MSELoss()        # Mean Squared Error: sensibile agli outliers, per non sbagliare mai troppo
 #criterion = nn.SmoothL1Loss() # Huber Loss: robusto agli outliers, ma meno sensibile ai picchi rispetto all'MSE
@@ -96,38 +97,32 @@ optimizer = optim.RMSprop(model.parameters(), lr)
 def train_model(model, train_x, train_y, val_x, val_y, criterion, optimizer, num_epochs):
     train_losses = []
     val_losses = []
-    patience = 10  # Number of epochs to wait for improvement
+    patience =30  # Number of epochs to wait for improvement
     best_val_loss = float('inf')
     epochs_no_improve = 0
     
     for epoch in range(num_epochs):
-        
-        # Training
         model.train()
         optimizer.zero_grad()
-        train_loss = 0.0
-        for i in range(len(train_x)):
-            output = model(train_x[i])
-            loss = criterion(output, train_y[i])
-            train_loss += loss.item()
-            loss.backward()
-            optimizer.step()
-        train_loss /= len(train_data)
-        train_losses.append(loss.item())
-        
+        output = model(train_x)
+        train_loss = criterion(output, train_y)
+        train_loss.backward()
+        optimizer.step()
+        train_loss_value = scaler.inverse_transform([[train_loss.item()]])[0][0]
+        train_losses.append(train_loss_value.item())
+
         # Validation
         model.eval()
-        val_loss = 0.0
         with torch.no_grad():
-            for i in range(len(val_x)):
-                val_output = model(val_x[i].unsqueeze(0))  # Add batch dimension
-                loss = criterion(val_output, val_y[i].unsqueeze(0))  # Add batch dimension
-                val_loss += loss.item()
-        val_loss /= len(val_x)
-        val_losses.append(val_loss.item())
+            val_output = model(val_x)
+            val_loss = criterion(val_output, val_y)
+            val_loss_value = scaler.inverse_transform([[val_loss.item()]])[0][0]
+            val_losses.append(val_loss_value)
+
+        
 
         if (epoch + 1) % 10 == 0:
-            print(f'Epoch {epoch + 1}/{num_epochs}, Train Loss: {loss.item():.4f}, Val Loss: {val_loss.item():.4f}')
+            print(f'Epoch {epoch + 1}/{num_epochs}, Train Loss: {train_losses[-1]:.4f}, Val Loss: {val_losses[-1]:.4f}')
 
         # Early stopping condition
         if val_losses[-1] < best_val_loss:
@@ -144,14 +139,14 @@ def train_model(model, train_x, train_y, val_x, val_y, criterion, optimizer, num
 
 
 # ===== 4. Training the Model =====
-num_epochs = 30
+num_epochs = 250
 train_losses, val_losses = train_model(model, train_x, train_y, val_x, val_y, criterion, optimizer, num_epochs)
 
 
 # ===== 5. Plotting the Losses =====
 plt.figure(figsize=(8, 5))
-plt.plot(range(1, len(train_losses) + 1), train_losses, label='Train Loss', marker='o')
-plt.plot(range(1, len(val_losses) + 1), val_losses, label='Validation Loss', marker='s')
+plt.plot(range(2, len(train_losses) + 1), train_losses[1:], label='Train Loss', marker='o')
+plt.plot(range(2, len(val_losses) + 1), val_losses[1:], label='Validation Loss', marker='s')
 plt.legend()
 plt.xlabel('Epochs')
 plt.ylabel('Loss')
@@ -166,17 +161,14 @@ predictions = []
 actuals = []
 # MSE Loss
 with torch.no_grad():
-    for i in range(len(test_x)):
+    output = model(test_x)  # Add batch dimension
+    test_loss = criterion(output, test_y)  # Add batch dimension
+    test_loss_value = scaler.inverse_transform([[test_loss.item()]])[0][0]
 
-        output = model(test_x[i].unsqueeze(0))  # Add batch dimension
-        loss = criterion(output, test_y[i].unsqueeze(0))  # Add batch dimension
-        test_loss += loss.item()
+    predictions.extend(output)
+    actuals.extend(test_y)
 
-        predictions.extend(output)
-        actuals.extend(test_y[i])
-
-final_test_loss = test_loss / len(test_data)
-print(f'\nMSE Loss - Test set (MLP): {final_test_loss:.6f}')
+print(f'\nMSE Loss - Test set (MLP): {test_loss_value:.6f}')
 
 # Accuracy Loss
 def accuracy_based_loss(predictions, actuals, threshold):
