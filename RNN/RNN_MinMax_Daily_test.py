@@ -52,14 +52,12 @@ test_target = scaler.transform(testing[[target]])
 def create_tensor_dataset(data, target):
     # Add dimension to ensure the correct shape for RNN input
     x = torch.tensor(data, dtype=torch.float32).unsqueeze(1)  # Add sequence dimension
-    y = torch.tensor(target, dtype=torch.float32).unsqueeze(1)
+    y = torch.tensor(target, dtype=torch.float32)
     return x, y
 
 train_x, train_y = create_tensor_dataset(train_data, train_target)
 val_x, val_y = create_tensor_dataset(val_data, val_target)
 test_x, test_y = create_tensor_dataset(test_data, test_target)
-
-
 
 
 # ===== 2. Definition of the MLP (Fully Connected Layer) =====
@@ -77,7 +75,6 @@ class RNN(nn.Module):
         out = self.fc(out[:, -1, :])
         return out
 
-
 # Set hyperparameters and instantiate the model
 input_size = len(features)
 hidden_size = 64
@@ -87,15 +84,20 @@ lr = 0.001
 
 # Instantiate the model, define loss function and optimizer
 model = RNN(input_size, hidden_size, num_layers, output_size)
-criterion = nn.MSELoss()
+model = model.to(device)
+
+criterion = nn.MSELoss()        # Mean Squared Error: sensibile agli outliers, per non sbagliare mai troppo
+#criterion = nn.SmoothL1Loss() # Huber Loss: robusto agli outliers, ma meno sensibile ai picchi rispetto all'MSE
+
 optimizer = optim.RMSprop(model.parameters(), lr)
+# optimizer = optim.Adam(model.parameters(), lr)
 
 
 # ===== 3. Training Function =====
 def train_model(model, train_X, train_y, val_X, val_y, criterion, optimizer, num_epochs):
     train_losses = []
     val_losses = []
-    patience = 5  # Number of epochs to wait for improvement
+    patience = 10  # Number of epochs to wait for improvement
     best_val_loss = float('inf')
     epochs_no_improve = 0
     
@@ -132,8 +134,7 @@ def train_model(model, train_X, train_y, val_X, val_y, criterion, optimizer, num
 
 
 # ===== 4. Training the Model =====
-num_epochs = 10
-batch_size = 32
+num_epochs = 150
 train_losses, val_losses = train_model(model, train_x, train_y, val_x, val_y, criterion, optimizer, num_epochs)
 
 
@@ -156,26 +157,24 @@ actuals = []
 # MSE Loss
 with torch.no_grad():
     for i in range(len(test_data)):
-        x_test = torch.tensor(test_data.values, dtype=torch.float32).unsqueeze(1)  # Add sequence dimension
-        y_test = torch.tensor(test_target.values, dtype=torch.float32).unsqueeze(1)
 
-        output = model(x_test)
-        loss = criterion(output, y_test)
+        output = model(test_x[i].unsqueeze(0))  # Add batch dimension
+        loss = criterion(output, test_y[i].unsqueeze(0))  # Add batch dimension
         test_loss += loss.item()
 
-        predictions.extend(output.squeeze().tolist())  # Convert to a list of scalars and extend the predictions list
-        actuals.extend(y_test.squeeze().tolist())   
+        predictions.extend(output)
+        actuals.extend(test_y[i])
 
 final_test_loss = test_loss / len(test_data)
 print(f'\nMSE Loss - Test set (MLP): {final_test_loss:.6f}')
 
 # Accuracy Loss
-def accuracy_based_loss(predictions, targets, threshold):
+def accuracy_based_loss(predictions, actuals, threshold):
     accuracy = 0
     corrects = 0
     # Calculate the number of correct predictions within the threshold
     for length in range(len(predictions)):
-        if abs(predictions[length] - targets[length]) <= threshold*targets[length]:
+        if abs(predictions[length] - actuals[length]) <= threshold*actuals[length]:
             corrects += 1
     # Calculate the loss as the ratio of incorrect predictions
     accuracy = corrects / len(predictions)

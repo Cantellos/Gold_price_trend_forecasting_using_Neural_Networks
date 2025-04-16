@@ -28,20 +28,37 @@ target = 'future_close'
 train_size = int(len(data) * 0.7)   
 val_size = int(len(data) * 0.15)
 
-train_data = data[:train_size]
-val_data = data[train_size:train_size + val_size]
-test_data = data[train_size + val_size:]
+training = data[:train_size]
+validation = data[train_size:train_size + val_size]
+testing = data[train_size + val_size:]
 
 # Normalize features feature by feature
 scaler = MinMaxScaler()
 
-# Fit only on the training set
-scaler.fit(train_data[features])
+# Fit only on the training set, but transform all of them using the same scaler
+scaler.fit(training[features])
 
-# Transform training, validation, and test using the same scaler
-train_data[features] = scaler.transform(train_data[features])
-val_data[features] = scaler.transform(val_data[features])
-test_data[features] = scaler.transform(test_data[features])
+train_data = scaler.transform(training[features])
+val_data = scaler.transform(validation[features])
+test_data = scaler.transform(testing[features])
+
+# Normalize target variable (future_close) separately
+scaler.fit(training[[target]])
+
+train_target = scaler.transform(training[[target]])
+val_target = scaler.transform(validation[[target]])
+test_target = scaler.transform(testing[[target]])
+
+# Convert data to PyTorch tensors
+def create_tensor_dataset(data, target):
+    # Add dimension to ensure the correct shape for RNN input
+    x = torch.tensor(data, dtype=torch.float32).unsqueeze(1)  # Add sequence dimension
+    y = torch.tensor(target, dtype=torch.float32)
+    return x, y
+
+train_x, train_y = create_tensor_dataset(train_data, train_target)
+val_x, val_y = create_tensor_dataset(val_data, val_target)
+test_x, test_y = create_tensor_dataset(test_data, test_target)
 
 
 # ===== 2. Definition of the MLP (Fully Connected Layer) =====
@@ -65,11 +82,6 @@ lr=0.001
 
 model = FullyConnected(input_size, hidden_size, output_size)
 
-class MAPELoss(nn.Module):
-    def forward(self, y_pred, y_true):
-        epsilon = 1e-8  # per evitare divisioni per zero
-        return torch.mean(torch.abs((y_true - y_pred) / (y_true + epsilon))) * 100
-# criterion = MAPELoss()
 # criterion = nn.SmoothL1Loss()
 criterion = nn.MSELoss()
 
