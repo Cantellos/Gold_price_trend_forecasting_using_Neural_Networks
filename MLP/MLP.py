@@ -102,9 +102,9 @@ def train_model(model, train_x, train_y, val_x, val_y, criterion, optimizer, num
         model.train()
         train_loss = 0.0
         optimizer.zero_grad()
-        for i in range(len(train_data)):
+        for i in range(len(train_x)):
             output = model(train_x)
-            loss = criterion(output, train_y)
+            loss = criterion(output[i], train_y[i])
             loss.backward()
             train_loss += loss.item()
             optimizer.step()

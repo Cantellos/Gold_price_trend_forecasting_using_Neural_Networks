@@ -157,7 +157,7 @@ predictions = []
 actuals = []
 # MSE Loss
 with torch.no_grad():
-    for i in range(len(test_data)):
+    for i in range(len(test_x)):
 
         output = model(test_x[i].unsqueeze(0))  # Add batch dimension
         loss = criterion(output, test_y[i].unsqueeze(0))  # Add batch dimension
