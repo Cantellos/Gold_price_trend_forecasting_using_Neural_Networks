@@ -7,67 +7,60 @@ from sklearn.preprocessing import MinMaxScaler
 import matplotlib.pyplot as plt
 from pathlib import Path
 
+# Imposta il dispositivo per l'esecuzione su GPU se disponibile
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(f"Using device: {device}")
+
 pd.options.mode.copy_on_write = True
 
-# Load and preprocess the dataset --------------------------------------------
+
+# ===== 1. Caricamento e Normalizzazione del Dataset =====
 # Load the dataset
-file_path = (Path(__file__).resolve().parent.parent / '.data' / 'dataset' / 'XAU_15m_data_2004_to_2024-09-20.csv').as_posix()
+file_path = (Path(__file__).resolve().parent.parent / '.data' / 'dataset' / 'XAU_1d_data_2004_to_2024-09-20.csv').as_posix()
 data = pd.read_csv(file_path)
 
 # Separate features and target
 features = ['Open', 'High', 'Low', 'Close', 'Volume', 'MA_200', 'EMA_12-26', 'EMA_50-200', '%K', '%D', 'RSI']
 target = 'future_close'
 
-# Split the dataset using the expanding window method
-train_size = int(0.7 * len(data))
-train_data = data.iloc[:train_size]
-val_data = data.iloc[train_size:int(0.85 * len(data))]
-test_data = data.iloc[int(0.85 * len(data)):]
+# Split dataset (70% train, 15% val, 15% test)
+train_size = int(len(data) * 0.7)   
+val_size = int(len(data) * 0.15)
 
+training= data[:train_size]
+validation = data[train_size:train_size + val_size]
+testing = data[train_size + val_size:]
 
+# Normalize features using Min-Max scaling
+scaler = MinMaxScaler()
 
-# Normalize the data using Min-Max scaling (scales data to range [-1, 1]) ------------------------------------
-# Dictionaries to store min and max values for each feature
-train_min = {}
-train_max = {}
+# Fit only on the training set, but transform all of them using the same scaler
+scaler.fit(training[features])
 
-# TODO check if everrything okay when doing this, because fo the warning (giving eityher a copy or a view)
+train_data = scaler.transform(training[features])
+val_data = scaler.transform(validation[features])
+test_data = scaler.transform(testing[features])
 
-# Find min and max for each feature on the training data
-for feature in features:
-    train_min[feature] = train_data[feature].min()
-    train_max[feature] = train_data[feature].max()
+# Normalize target variable (future_close) separately
+scaler.fit(training[[target]])
 
-# Apply Min-Max scaling to each feature
-for feature in features:
-    train_data[feature] = 2 * (train_data[feature] - train_min[feature]) / (train_max[feature] - train_min[feature]) - 1
-    val_data[feature] = 2 * (val_data[feature] - train_min[feature]) / (train_max[feature] - train_min[feature]) - 1
-    test_data[feature] = 2 * (test_data[feature] - train_min[feature]) / (train_max[feature] - train_min[feature]) - 1
+train_target = scaler.transform(training[[target]])
+val_target = scaler.transform(validation[[target]])
+test_target = scaler.transform(testing[[target]])
 
-# Normalize target variable separately
-target_min = test_data[target].min()
-target_max = test_data[target].max()
-
-train_data[target] = 2 * (train_data[target] - target_min) / (target_max - target_min) - 1
-val_data[target] = 2 * (val_data[target] - target_min) / (target_max - target_min) - 1
-test_data[target] = 2 * (test_data[target] - target_min) / (target_max - target_min) - 1
-
-
-
-# Convert data to PyTorch tensors --------------------------------------------
-def create_tensor_dataset(df, features, target):
+# Convert data to PyTorch tensors
+def create_tensor_dataset(data, target):
     # Add dimension to ensure the correct shape for RNN input
-    X = torch.tensor(df[features].values, dtype=torch.float32).unsqueeze(1)
-    y = torch.tensor(df[target].values, dtype=torch.float32).unsqueeze(1)
-    return X, y
+    x = torch.tensor(data, dtype=torch.float32).unsqueeze(1)  # Add sequence dimension
+    y = torch.tensor(target, dtype=torch.float32)
+    return x, y
 
-train_X, train_y = create_tensor_dataset(train_data, features, target)
-val_X, val_y = create_tensor_dataset(val_data, features, target)
-test_X, test_y = create_tensor_dataset(test_data, features, target)
+train_x, train_y = create_tensor_dataset(train_data, train_target)
+val_x, val_y = create_tensor_dataset(val_data, val_target)
+test_x, test_y = create_tensor_dataset(test_data, test_target)
 
 
-
-# Define the RNN model -------------------------------------------------------
+# ===== 2. Definition of the MLP (Fully Connected Layer) =====
 class RNN(nn.Module):
     def __init__(self, input_size, hidden_size, num_layers, output_size):
         super(RNN, self).__init__()
@@ -77,110 +70,123 @@ class RNN(nn.Module):
         self.fc = nn.Linear(hidden_size, output_size)
 
     def forward(self, x):
-        h0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(x.device)
+        h0 = torch.zeros(self.num_layers, x.shape[0], self.hidden_size).to(x.device)
         out, _ = self.rnn(x, h0)
         out = self.fc(out[:, -1, :])
         return out
 
-
-
-# Set hyperparameters and instantiate the model ------------------------------
-input_size = train_X.shape[2] # Number of features (only training data, not target variable)
-hidden_size = 128
+# Set hyperparameters and instantiate the model
+input_size = len(features)
+hidden_size = 64
 num_layers = 1
-num_epochs = 50
 output_size = 1
 lr = 0.001
 
 # Instantiate the model, define loss function and optimizer
 model = RNN(input_size, hidden_size, num_layers, output_size)
-
-class MAPELoss(nn.Module):
-    def forward(self, y_pred, y_true):
-        epsilon = 1e-8  # per evitare divisioni per zero
-        return torch.mean(torch.abs((y_true - y_pred) / (y_true + epsilon))) * 100
+model = model.to(device)
 
 criterion = nn.MSELoss()        # Mean Squared Error: sensibile agli outliers, per non sbagliare mai troppo
-# criterion = nn.SmoothL1Loss() # Huber Loss: robusto agli outliers, ma meno sensibile ai picchi rispetto all'MSE
-# criterion = MAPELoss()        # Mean Absolute Percentage Error: per valutare le previsioni in termini percentuali
+#criterion = nn.SmoothL1Loss() # Huber Loss: robusto agli outliers, ma meno sensibile ai picchi rispetto all'MSE
 
 optimizer = optim.RMSprop(model.parameters(), lr)
 # optimizer = optim.Adam(model.parameters(), lr)
 
 
-# Define the training function ------------------------------------------------
-def train_model(model, train_X, train_y, val_X, val_y, criterion, optimizer, num_epochs):
-    from RNN.TODO_upgrades.RNN_MinMax_Daily_NEW import inverse_transform
+# ===== 3. Training Function =====
+def train_model(model, train_x, train_y, val_x, val_y, criterion, optimizer, num_epochs):
     train_losses = []
     val_losses = []
+    patience = 10  # Number of epochs to wait for improvement
+    best_val_loss = float('inf')
+    epochs_no_improve = 0
     
     for epoch in range(num_epochs):
         model.train()
         optimizer.zero_grad()
-        output = model(train_X)
+        output = model(train_x)
         loss = criterion(output, train_y)
         loss.backward()
         optimizer.step()
-        train_losses.append(inverse_transform(loss.item(), target_min, target_max))
+        train_losses.append(loss.item())
 
+        # Validation
         model.eval()
         with torch.no_grad():
-            val_output = model(val_X)
+            val_output = model(val_x)
             val_loss = criterion(val_output, val_y)
-            val_losses.append(inverse_transform(val_loss.item(), target_min, target_max))
+            val_losses.append(val_loss.item())
 
-        
-        print(f'Epoch {epoch + 1}/{num_epochs}, Train Loss: {inverse_transform(loss.item(), target_min, target_max):.4f}, Val Loss: {inverse_transform(val_loss.item(), target_min, target_max):.4f}')
+        if (epoch + 1) % 10 == 0:
+            print(f'Epoch {epoch + 1}/{num_epochs}, Train Loss: {loss.item():.4f}, Val Loss: {val_loss.item():.4f}')
+
+        # Early stopping condition
+        if val_losses[-1] < best_val_loss:
+            best_val_loss = val_losses[-1]
+            epochs_no_improve = 0
+        else:
+            epochs_no_improve += 1
+
+        if epochs_no_improve >= patience:
+            print(f"Early stopping at epoch {epoch+1} due to no improvement in validation loss for {patience} epochs.")
+            break
 
     return train_losses, val_losses
 
-# Inverse transform the normalized values back to original price scale
-def inverse_transform(preds, min_val, max_val):
-    return (preds + 1) * (max_val - min_val) / 2 + min_val
+
+# ===== 4. Training the Model =====
+num_epochs = 150
+train_losses, val_losses = train_model(model, train_x, train_y, val_x, val_y, criterion, optimizer, num_epochs)
 
 
-
-# Train the model -------------------------------------------------------------
-train_losses, val_losses = train_model(model, train_X, train_y, val_X, val_y, criterion, optimizer, num_epochs)
-
-# Plot the training and validation loss
+# ===== 5. Plotting the Losses =====
 plt.figure(figsize=(8, 5))
-plt.plot(range(1, len(train_losses) + 1), train_losses, label="Training Loss", marker="o")
-plt.plot(range(1, len(val_losses) + 1), val_losses, label="Validation Loss", marker="s")
-plt.xlabel("Epoch")
-plt.ylabel("Loss")
-plt.title("Training vs Validation Loss")
+plt.plot(range(1, len(train_losses) + 1), train_losses, label='Train Loss', marker='o')
+plt.plot(range(1, len(val_losses) + 1), val_losses, label='Validation Loss', marker='s')
 plt.legend()
-plt.grid(True)
+plt.xlabel('Epochs')
+plt.ylabel('Loss')
+plt.title('Training and Validation Loss (excluding first 1 for graphic reasons)')
 plt.show()
 
 
-
-# Evaluate the model on the test set ------------------------------------------
-predictions = []
-actual_values = []
+# ===== 6. Testing the Model =====
 model.eval()
 test_loss = 0.0
-
+predictions = []
+actuals = []
+# MSE Loss
 with torch.no_grad():
-    for i in range(len(test_X)):
-        x_test = test_X[i].unsqueeze(0)
-        y_test = test_y[i].unsqueeze(0)
+    for i in range(len(test_data)):
 
-        pred = model(x_test)
-        loss = criterion(pred.view(-1), y_test.view(-1))
+        output = model(test_x[i].unsqueeze(0))  # Add batch dimension
+        loss = criterion(output, test_y[i].unsqueeze(0))  # Add batch dimension
         test_loss += loss.item()
 
-        predictions.append(inverse_transform(pred.item(), target_min, target_max))
-        actual_values.append(inverse_transform(y_test.item(), target_min, target_max))
+        predictions.extend(output)
+        actuals.extend(test_y[i])
 
+final_test_loss = test_loss / len(test_data)
+print(f'\nMSE Loss - Test set (MLP): {final_test_loss:.6f}')
 
-final_test_loss = inverse_transform(test_loss, target_min, target_max) / len(test_data)
-print(f'\nFinal Test Loss (RNN_MinMax): {final_test_loss:.6f}')
+# Accuracy Loss
+def accuracy_based_loss(predictions, actuals, threshold):
+    accuracy = 0
+    corrects = 0
+    # Calculate the number of correct predictions within the threshold
+    for length in range(len(predictions)):
+        if abs(predictions[length] - actuals[length]) <= threshold*actuals[length]:
+            corrects += 1
+    # Calculate the loss as the ratio of incorrect predictions
+    accuracy = corrects / len(predictions)
+    return accuracy
+
+loss = accuracy_based_loss(predictions, actuals, threshold=0.02)  # 2% tolerance
+print(f'\nAccuracy - Test set (MLP): {loss*100:.4f}% of correct predictions within 2%\n')
 
 # Plot Actual vs Predicted Prices
 plt.figure(figsize=(12, 6))
-plt.plot(actual_values, label="Actual Price", color='blue')
+plt.plot(actuals, label="Actual Price", color='blue')
 plt.plot(predictions, label="Predicted Price", color='red')
 plt.xlabel("Time")
 plt.ylabel("Price")

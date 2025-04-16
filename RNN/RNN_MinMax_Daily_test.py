@@ -94,7 +94,7 @@ optimizer = optim.RMSprop(model.parameters(), lr)
 
 
 # ===== 3. Training Function =====
-def train_model(model, train_X, train_y, val_X, val_y, criterion, optimizer, num_epochs):
+def train_model(model, train_x, train_y, val_x, val_y, criterion, optimizer, num_epochs):
     train_losses = []
     val_losses = []
     patience = 10  # Number of epochs to wait for improvement
@@ -104,15 +104,16 @@ def train_model(model, train_X, train_y, val_X, val_y, criterion, optimizer, num
     for epoch in range(num_epochs):
         model.train()
         optimizer.zero_grad()
-        output = model(train_X)  # Add sequence dimension
+        output = model(train_x)
         loss = criterion(output, train_y)
         loss.backward()
         optimizer.step()
         train_losses.append(loss.item())
 
+        # Validation
         model.eval()
         with torch.no_grad():
-            val_output = model(val_X)
+            val_output = model(val_x)
             val_loss = criterion(val_output, val_y)
             val_losses.append(val_loss.item())
 

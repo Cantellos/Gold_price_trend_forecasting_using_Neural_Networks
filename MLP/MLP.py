@@ -89,7 +89,7 @@ criterion = nn.MSELoss()
 optimizer = optim.RMSprop(model.parameters(), lr)
 
 # ===== 3. Training Function =====
-def train_model(model, train_data, val_data, criterion, optimizer, num_epochs):
+def train_model(model, train_x, train_y, val_x, val_y, criterion, optimizer, num_epochs):
     train_losses = []
     val_losses = []
     patience = 5  # Number of epochs to wait for improvement
@@ -97,35 +97,32 @@ def train_model(model, train_data, val_data, criterion, optimizer, num_epochs):
     epochs_no_improve = 0
 
     for epoch in range(num_epochs):
+
+        # Training
         model.train()
         train_loss = 0.0
-
+        optimizer.zero_grad()
         for i in range(len(train_data)):
-            x_train = torch.tensor(train_data[features].values, dtype=torch.float32)
-            y_train = torch.tensor(train_data[target].values, dtype=torch.float32)
-
-            optimizer.zero_grad()
-            output = model(x_train)
-            loss = criterion(output.view(-1), y_train.view(-1))
+            output = model(train_x)
+            loss = criterion(output, train_y)
             loss.backward()
-            optimizer.step()
             train_loss += loss.item()
+            optimizer.step()
 
-        train_losses.append(train_loss / len(train_data))
+        train_loss /= len(train_data)
+        train_losses.append(train_loss.item())  
 
         # Validation
         model.eval()
         val_loss = 0.0
         with torch.no_grad():
             for i in range(len(val_data)):
-                x_val = torch.tensor(val_data[features].values, dtype=torch.float32)
-                y_val = torch.tensor(val_data[target].values, dtype=torch.float32)  
-
-                output = model(x_val)
-                loss = criterion(output.view(-1), y_val.view(-1))
+                val_output = model(val_x)
+                loss = criterion(val_output, val_y)
                 val_loss += loss.item()
 
-            val_losses.append(val_loss / len(val_data))
+            val_loss /= len(val_data)
+            val_losses.append(val_loss.item())
 
         print(f'Epoch {epoch+1}/{num_epochs}, Train Loss: {train_losses[-1]:.6f}, Val Loss: {val_losses[-1]:.6f}')
 
@@ -144,8 +141,8 @@ def train_model(model, train_data, val_data, criterion, optimizer, num_epochs):
 
 
 # ===== 4. Training the Model =====
-num_epochs = 50
-train_losses, val_losses = train_model(model, train_data, val_data, criterion, optimizer, num_epochs)
+num_epochs = 20
+train_losses, val_losses = train_model(model, train_x, train_y, val_x, val_y, criterion, optimizer, num_epochs)
 
 
 # ===== 5. Plotting the Losses =====
@@ -167,15 +164,12 @@ actuals = []
 
 with torch.no_grad():
     for i in range(len(test_data)):
-        x_test = torch.tensor(test_data[features].values, dtype=torch.float32)
-        y_test = torch.tensor(test_data[target].values, dtype=torch.float32)
-
-        output = model(x_test)
-        loss = criterion(output.view(-1), y_test.view(-1))
+        output = model(test_x)
+        loss = criterion(output, test_y)
         test_loss += loss.item()
         
-        predictions.append(output.item())
-        actuals.append(y_test.item())
+        predictions.extend(output)
+        actuals.extend(test_y[i])
 
 final_test_loss = test_loss / len(test_data)
 print(f'\nMSE Loss - Test set (MLP): {final_test_loss:.6f}')
