@@ -23,10 +23,10 @@ for file in files:
     k_line = 100 * ((df_clean['Close'] - lowest_low) / (highest_high - lowest_low))
     d_line = k_line.rolling(window=3).mean()
     df_clean['%K'] = k_line
-    df_clean['%D'] = d_line
-# TODO: Fix the Stochastic Oscillator in 1 unique value
+    df_clean['%D'] = d_line   
+    # TODO: Change the Stochastic Oscillator in 1 unique value
 
-    # Relative Strength Index
+    # RSI: Relative Strength Index
     delta = df_clean['Close'].diff(1)
     gain = delta.where(delta > 0, 0)
     loss = -delta.where(delta < 0, 0)
