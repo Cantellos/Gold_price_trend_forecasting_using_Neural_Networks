@@ -203,6 +203,6 @@ plt.grid(True)
 plt.show()
 
 # Save the model
-model_path = (Path(__file__).resolve().parent.parent / 'models' / 'MLP_model.pth').as_posix()
+model_path = (Path(__file__).resolve().parent.parent / 'models' / 'MLP_test_model.pth').as_posix()
 Path(model_path).parent.mkdir(parents=True, exist_ok=True)  # Create the directory if it doesn't exist
 torch.save(model.state_dict(), model_path)

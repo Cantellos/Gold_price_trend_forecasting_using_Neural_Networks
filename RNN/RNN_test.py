@@ -149,7 +149,7 @@ plt.title("Training and Validation Loss")
 plt.legend()
 plt.grid(True)
 plt.tight_layout()
-loss_curve_path = (Path(__file__).resolve().parent.parent / 'images' / 'RNN_loss_curve.png').as_posix()
+loss_curve_path = (Path(__file__).resolve().parent.parent / 'images' / 'RNN_test_loss_curve.png').as_posix()
 Path(loss_curve_path).parent.mkdir(parents=True, exist_ok=True)  # Create the directory if it doesn't exist
 plt.savefig(loss_curve_path)
 plt.show()
@@ -201,6 +201,6 @@ plt.grid(True)
 plt.show()
 
 # Save the model in the "models" folder
-model_path = (Path(__file__).resolve().parent.parent / 'models' / 'RNN_model.pth').as_posix()
+model_path = (Path(__file__).resolve().parent.parent / 'models' / 'RNN_test_model.pth').as_posix()
 Path(model_path).parent.mkdir(parents=True, exist_ok=True)  # Create the directory if it doesn't exist
 torch.save(model.state_dict(), model_path)
