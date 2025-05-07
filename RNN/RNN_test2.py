@@ -75,7 +75,6 @@ y_train = y[:train_size]
 y_val = y[train_size:train_size + val_size]
 y_test = y[train_size + val_size:]
 
-# TODO: continua da qua !!!
 
 # ---- Step 5: Define the RNN Model ----
 class RNNModel(nn.Module):
@@ -105,21 +104,28 @@ optimizer = optim.Adam(model.parameters(), lr=0.001)
 # ---- Step 8: Training Loop ----
 num_epochs = 100
 train_losses = []
+val_losses = []
+# TODO: add evaluation, testing e graphics
 
 for epoch in range(num_epochs):
     model.train()
     optimizer.zero_grad()
-
     # Forward pass
     outputs = model(X_train)
     if epoch == 0: print(f"outputs shape {outputs.shape}, y_train shape {y_train.shape}")
     # Compute the loss
     loss = criterion(outputs, y_train)  # Squeeze to remove the extra dimension in output
     train_losses.append(loss.item())
-
     # Backward pass and optimization
     loss.backward()
     optimizer.step()
+
+    # Validation
+    model.eval()
+    with torch.no_grad():
+        val_output = model(X_val)
+        val_loss = criterion(val_output, y_val)
+        val_losses.append(val_loss.item())
 
     if (epoch + 1) % 10 == 0:
         print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {loss.item():.4f}")
