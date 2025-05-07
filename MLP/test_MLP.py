@@ -52,7 +52,7 @@ test_target = scaler.transform(testing[[target]])
 
 # Convert data to PyTorch tensors
 def create_tensor_dataset(data, target):
-    x = torch.tensor(data, dtype=torch.float32).unsqueeze(1)  # Add dimension to ensure the correct shape for RNN input
+    x = torch.tensor(data, dtype=torch.float32)  # Add dimension to ensure the correct shape for RNN input
     y = torch.tensor(target, dtype=torch.float32)
     return x, y
 
@@ -95,6 +95,7 @@ def train_model(model, train_x, train_y, val_x, val_y, criterion, optimizer, num
     patience = 5  # Number of epochs to wait for improvement
     best_val_loss = float('inf')
     epochs_no_improve = 0
+    best_model_state = None
 
     for epoch in range(num_epochs):
 
@@ -102,40 +103,42 @@ def train_model(model, train_x, train_y, val_x, val_y, criterion, optimizer, num
         model.train()
         train_loss = 0.0
         optimizer.zero_grad()
-        for i in range(len(train_x)):
-            output = model(train_x)
-            loss = criterion(output[i], train_y[i])
-            loss.backward()
-            train_loss += loss.item()
-            optimizer.step()
-
-        train_loss /= len(train_data)
-        train_losses.append(train_loss.item())  
+        output = model(train_x)
+        loss = criterion(output, train_y)
+        loss.backward()
+        optimizer.step()
+        train_loss = loss.item()
+        train_losses.append(train_loss)  
 
         # Validation
         model.eval()
         val_loss = 0.0
         with torch.no_grad():
-            for i in range(len(val_data)):
-                val_output = model(val_x)
-                loss = criterion(val_output, val_y)
-                val_loss += loss.item()
-
-            val_loss /= len(val_data)
-            val_losses.append(val_loss.item())
+            val_output = model(val_x)
+            val_loss = criterion(val_output, val_y).item()
+            val_losses.append(val_loss)
 
         print(f'Epoch {epoch+1}/{num_epochs}, Train Loss: {train_losses[-1]:.6f}, Val Loss: {val_losses[-1]:.6f}')
 
         # Early stopping condition
-        if val_losses[-1] < best_val_loss:
-            best_val_loss = val_losses[-1]
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
             epochs_no_improve = 0
+            best_model_state = model.state_dict()  # salva in RAM
+            print("✅ New best val_loss. Model weights saved in memory.")
         else:
             epochs_no_improve += 1
-
-        if epochs_no_improve >= patience:
-            print(f"Early stopping at epoch {epoch+1} due to no improvement in validation loss for {patience} epochs.")
-            break
+            print(f"⏳ No improvement: {epochs_no_improve}/{patience}")
+            if epochs_no_improve >= patience:
+                print(F"⛔ Early stopping triggered at epoch {epoch+1} due to no improvement in validation loss for {patience} epochs..")
+                break
+    
+    # At the end save the best model to disk
+    if best_model_state is not None:
+        model_path = (Path(__file__).resolve().parent.parent / 'models' / 'best_MLP_model.pth').as_posix()
+        Path(model_path).parent.mkdir(parents=True, exist_ok=True)  # Create the directory if it doesn't exist
+        torch.save(best_model_state, model_path)
+        print("📁 Best model weights saved to disk.")
 
     return train_losses, val_losses
 
@@ -157,22 +160,19 @@ plt.show()
 
 
 # ===== 6. Testing the Model =====
+model_path = (Path(__file__).resolve().parent.parent / 'models' / 'best_MLP_model.pth').as_posix()
+model.load_state_dict(torch.load(model_path, weights_only=False))
 model.eval()
+
 test_loss = 0.0
 predictions = []
 actuals = []
 
 with torch.no_grad():
-    for i in range(len(test_data)):
-        output = model(test_x)
-        loss = criterion(output, test_y)
-        test_loss += loss.item()
-        
-        predictions.extend(output)
-        actuals.extend(test_y[i])
-
-final_test_loss = test_loss / len(test_data)
-print(f'\nMSE Loss - Test set (MLP): {final_test_loss:.6f}')
+    test_outputs = model(test_x)
+    test_loss = criterion(test_outputs, test_y).item()
+    predictions = test_outputs.tolist()
+print(f'\n📊 MSE Loss - Test set (MLP): {test_loss:.6f}')
 
 
 # Accuracy Loss 
@@ -187,6 +187,8 @@ def accuracy_based_loss(predictions, targets, threshold):
     accuracy = corrects / len(predictions)
     return accuracy
 
+predictions = scaler.inverse_transform(predictions)  # Inverse transform to get actual prices
+actuals = scaler.inverse_transform(test_y)  # Inverse transform to get actual prices
 loss = accuracy_based_loss(predictions, actuals, threshold=0.02)  # 2% tolerance
 print(f'\nAccuracy - Test set (MLP): {loss*100:.4f}% of correct predictions within 2%\n')
 
@@ -201,8 +203,3 @@ plt.title("Actual vs Predicted Prices")
 plt.legend()
 plt.grid(True)
 plt.show()
-
-# Save the model
-model_path = (Path(__file__).resolve().parent.parent / 'models' / 'MLP_test_model.pth').as_posix()
-Path(model_path).parent.mkdir(parents=True, exist_ok=True)  # Create the directory if it doesn't exist
-torch.save(model.state_dict(), model_path)
