@@ -51,7 +51,7 @@ test_target = scaler.transform(testing[[target]])
 # Convert data to PyTorch tensors
 def create_tensor_dataset(data, target):
     # Add dimension to ensure the correct shape for RNN input
-    x = torch.tensor(data, dtype=torch.float32).unsqueeze(1)  # Add sequence dimension
+    x = torch.tensor(data, dtype=torch.float32).unsqueeze(1) 
     y = torch.tensor(target, dtype=torch.float32)
     return x, y
 

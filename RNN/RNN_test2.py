@@ -50,9 +50,7 @@ test_target = scaler.transform(testing[[target]])
 
 # Convert data to PyTorch tensors
 def create_tensor_dataset(data, target):
-    # Add dimension to ensure the correct shape for RNN input
-    
-    x = torch.tensor(data, dtype=torch.float32)  # Add sequence dimension
+    x = torch.tensor(data, dtype=torch.float32)
     y = torch.tensor(target, dtype=torch.float32)
     return x, y
 
@@ -88,7 +86,7 @@ model = RNN(input_size, hidden_size, num_layers, output_size)
 model = model.to(device)
 
 criterion = nn.MSELoss()        # Mean Squared Error: sensibile agli outliers, per non sbagliare mai troppo
-#criterion = nn.SmoothL1Loss() # Huber Loss: robusto agli outliers, ma meno sensibile ai picchi rispetto all'MSE
+#criterion = nn.SmoothL1Loss()  # Huber Loss: robusto agli outliers, ma meno sensibile ai picchi rispetto all'MSE
 
 optimizer = optim.RMSprop(model.parameters(), lr)
 # optimizer = optim.Adam(model.parameters(), lr)
