@@ -80,7 +80,7 @@ input_size = len(features)
 hidden_size = 128
 num_layers = 1
 output_size = 1
-lr = 0.001
+lr = 0.002
 
 # Instantiate the model, define loss function and optimizer
 model = RNN(input_size, hidden_size, num_layers, output_size)
