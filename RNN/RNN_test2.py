@@ -1,10 +1,11 @@
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import pandas as pd
-import numpy as np
 from sklearn.preprocessing import MinMaxScaler
+from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
+import pandas as pd
 from pathlib import Path
 
 # Imposta il dispositivo per l'esecuzione su GPU se disponibile
@@ -23,183 +24,145 @@ data = pd.read_csv(file_path)
 features = ['Open', 'High', 'Low', 'Close', 'Volume', 'MA_200', 'EMA_12-26', 'EMA_50-200', '%K', '%D', 'RSI']
 target = 'future_close'
 
-# Split dataset (70% train, 15% val, 15% test)
+# ---- Step 2: Normalize Features and Target Separately ----
+# Separate the features (first 11 columns) from the target (12th column)
+input_data = data[features]  # shape: [3000, 11]
+target_data = data[target].values.reshape(-1, 1)  # shape: [3000, 1]
+
+# Normalize the features (first 11 columns) between 0 and 1
+feature_scaler = MinMaxScaler(feature_range=(0, 1))
+features_scaled = feature_scaler.fit_transform(input_data)
+
+# Normalize the target (last column) between 0 and 1
+target_scaler = MinMaxScaler(feature_range=(0, 1))
+target_scaled = target_scaler.fit_transform(target_data)
+
+# Combine the scaled features and target back together
+data_scaled = np.hstack((features_scaled, target_scaled))
+
+# ---- Step 3: Prepare Data Sequences ----
+seq_length = 50  # number of time steps in each input sequence
+pred_length = 5  # number of future steps to predict
+
+X = []
+y = []
+
+max_start = len(data_scaled) - seq_length - pred_length + 1
+for i in range(max_start):
+    input_seq = data_scaled[i : i + seq_length, :-1]  # First 11 columns (input features)
+    target_seq = data_scaled[i + seq_length : i + seq_length + pred_length, -1]  # Last column (target to predict)
+    
+    X.append(input_seq)
+    y.append(target_seq)
+
+# Convert lists to numpy arrays
+X = np.array(X)  # shape: [N, 50, 11]
+y = np.array(y)  # shape: [N, 5]
+
+# Convert to PyTorch tensors
+X = torch.tensor(X, dtype=torch.float32)
+y = torch.tensor(y, dtype=torch.float32)
+
+# ---- Step 4: Train-Validation-Test Split ----
+# (70% train, 15% val, 15% test)
 train_size = int(len(data) * 0.7)   
 val_size = int(len(data) * 0.15)
 
-training= data[:train_size]
-validation = data[train_size:train_size + val_size]
-testing = data[train_size + val_size:]
+X_train = X[:train_size]
+X_val = X[train_size:train_size + val_size]
+X_test = X[train_size + val_size:]
+y_train = y[:train_size]
+y_val = y[train_size:train_size + val_size]
+y_test = y[train_size + val_size:]
 
-# Normalize features using Min-Max scaling
-scaler = MinMaxScaler()
+# TODO: continua da qua !!!
 
-# Fit only on the training set, but transform all of them using the same scaler
-scaler.fit(training[features])
-
-train_data = scaler.transform(training[features])
-val_data = scaler.transform(validation[features])
-test_data = scaler.transform(testing[features])
-
-# Normalize target variable (future_close) separately
-scaler.fit(training[[target]])
-
-train_target = scaler.transform(training[[target]])
-val_target = scaler.transform(validation[[target]])
-test_target = scaler.transform(testing[[target]])
-
-# Convert data to PyTorch tensors
-def create_tensor_dataset(data, target):
-    x = torch.tensor(data, dtype=torch.float32)
-    y = torch.tensor(target, dtype=torch.float32)
-    return x, y
-
-train_x, train_y = create_tensor_dataset(train_data, train_target)
-val_x, val_y = create_tensor_dataset(val_data, val_target)
-test_x, test_y = create_tensor_dataset(test_data, test_target)
-
-
-# ===== 2. Definition of the MLP (Fully Connected Layer) =====
-class RNN(nn.Module):
+# ---- Step 5: Define the RNN Model ----
+class RNNModel(nn.Module):
     def __init__(self, input_size, hidden_size, num_layers, output_size):
-        super(RNN, self).__init__()
-        self.hidden_size = hidden_size
-        self.num_layers = num_layers
+        super(RNNModel, self).__init__()
         self.rnn = nn.RNN(input_size, hidden_size, num_layers, batch_first=True)
         self.fc = nn.Linear(hidden_size, output_size)
 
     def forward(self, x):
-        h0 = torch.zeros(self.num_layers, x.shape[0], self.hidden_size).to(x.device)
-        out, _ = self.rnn(x, h0)
-        out = self.fc(out[:, -1, :])
-        return out
+        # x: [batch_size, seq_len, input_size]
+        out, _ = self.rnn(x)  # out: [batch_size, seq_len, hidden_size]
+        last_output = out[:, -1, :]  # take the last time step
+        return self.fc(last_output)  # output: [batch_size, output_size]
 
-# Set hyperparameters and instantiate the model
-input_size = len(features)
-hidden_size = 128
-num_layers = 1
-output_size = 1
-lr = 0.001
+# ---- Step 6: Model Initialization and Hyperparameters ----
+input_size = len(features)     # First 11 columns (input features)
+hidden_size = 64     # Hidden layer size
+num_layers = 2       # Number of RNN layers
+output_size = 5      # Output is the next time step for the last column (target)
 
-# Instantiate the model, define loss function and optimizer
-model = RNN(input_size, hidden_size, num_layers, output_size)
-model = model.to(device)
+model = RNNModel(input_size, hidden_size, num_layers, output_size)
 
-criterion = nn.MSELoss()        # Mean Squared Error: sensibile agli outliers, per non sbagliare mai troppo
-#criterion = nn.SmoothL1Loss()  # Huber Loss: robusto agli outliers, ma meno sensibile ai picchi rispetto all'MSE
+# ---- Step 7: Loss Function and Optimizer ----
+criterion = nn.MSELoss()  # Mean Squared Error Loss for regression
+optimizer = optim.Adam(model.parameters(), lr=0.001)
 
-optimizer = optim.RMSprop(model.parameters(), lr)
-# optimizer = optim.Adam(model.parameters(), lr)
+# ---- Step 8: Training Loop ----
+num_epochs = 100
+train_losses = []
 
+for epoch in range(num_epochs):
+    model.train()
+    optimizer.zero_grad()
 
-# ===== 3. Training Function =====
-def train_model(model, train_x, train_y, val_x, val_y, criterion, optimizer, num_epochs):
-    train_losses = []
-    val_losses = []
-    patience = 20 # Number of epochs to wait for improvement
-    best_val_loss = float('inf')
-    epochs_no_improve = 0
-    
-    for epoch in range(num_epochs):
-        model.train()
-        optimizer.zero_grad()
-        output = model(train_x)
-        loss = criterion(output, train_y)
-        loss.backward()
-        optimizer.step()
-        train_losses.append(loss.item())
+    # Forward pass
+    outputs = model(X_train)
+    if epoch == 0: print(f"outputs shape {outputs.shape}, y_train shape {y_train.shape}")
+    # Compute the loss
+    loss = criterion(outputs, y_train)  # Squeeze to remove the extra dimension in output
+    train_losses.append(loss.item())
 
-        # Validation
-        model.eval()
-        with torch.no_grad():
-            val_output = model(val_x)
-            val_loss = criterion(val_output, val_y)
-            val_losses.append(val_loss.item())
+    # Backward pass and optimization
+    loss.backward()
+    optimizer.step()
 
-        if (epoch + 1) % 10 == 0:
-            print(f'Epoch {epoch + 1}/{num_epochs}, Train Loss: {loss.item():.4f}, Val Loss: {val_loss.item():.4f}')
+    if (epoch + 1) % 10 == 0:
+        print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {loss.item():.4f}")
 
-        # Early stopping condition
-        if val_losses[-1] < best_val_loss:
-            best_val_loss = val_losses[-1]
-            epochs_no_improve = 0
-        else:
-            epochs_no_improve += 1
-
-        if epochs_no_improve >= patience:
-            print(f"Early stopping at epoch {epoch+1} due to no improvement in validation loss for {patience} epochs.")
-            break
-
-    return train_losses, val_losses
-
-
-# ===== 4. Training the Model =====
-num_epochs = 150
-train_losses, val_losses = train_model(model, train_x, train_y, val_x, val_y, criterion, optimizer, num_epochs)
-
-
-# ===== 5. Plotting the Losses =====
-plt.figure(figsize=(8, 5))
-plt.plot(range(3, len(train_losses) + 1), train_losses[2:], label='Train Loss', marker='o')
-plt.plot(range(3, len(val_losses) + 1), val_losses[2:], label='Validation Loss', marker='s')
-plt.xlabel("Epoch")
-plt.ylabel("Loss")
-plt.title("Training and Validation Loss")
-plt.legend()
-plt.grid(True)
-plt.tight_layout()
-loss_curve_path = (Path(__file__).resolve().parent.parent / 'images' / 'RNN_loss_curve.png').as_posix()
-Path(loss_curve_path).parent.mkdir(parents=True, exist_ok=True)  # Create the directory if it doesn't exist
-plt.savefig(loss_curve_path)
-plt.show()
-
-
-# ===== 6. Testing the Model =====
+# ---- Step 9: Evaluate the Model ----
 model.eval()
-test_loss = 0.0
-predictions = []
-actuals = []
-# MSE Loss
 with torch.no_grad():
-    for i in range(len(test_data)):
+    # Make predictions
+    train_predictions = model(X_train)
+    test_predictions = model(X_test)
 
-        output = model(test_x[i].unsqueeze(0))  # Add batch dimension
-        loss = criterion(output, test_y[i].unsqueeze(0))  # Add batch dimension
-        test_loss += loss.item()
+    # Compute test loss
+    test_loss = criterion(test_predictions, y_test)  # Squeeze to match the dimensions
+    print(f"Test Loss: {test_loss.item():.4f}")
 
-        predictions.extend(output)
-        actuals.extend(test_y[i])
-
-final_test_loss = test_loss / len(test_data)
-print(f'\nMSE Loss - Test set (MLP): {final_test_loss:.6f}')
-
-# Accuracy Loss
-def accuracy_based_loss(predictions, actuals, threshold):
-    accuracy = 0
-    corrects = 0
-    # Calculate the number of correct predictions within the threshold
-    for length in range(len(predictions)):
-        if abs(predictions[length] - actuals[length]) <= threshold*actuals[length]:
-            corrects += 1
-    # Calculate the loss as the ratio of incorrect predictions
-    accuracy = corrects / len(predictions)
-    return accuracy
-
-loss = accuracy_based_loss(predictions, actuals, threshold=0.02)  # 2% tolerance
-print(f'\nAccuracy - Test set (MLP): {loss*100:.2f}% of correct predictions within 2%\n')
-
-# Plot Actual vs Predicted Prices
-plt.figure(figsize=(12, 6))
-plt.plot(actuals, label="Actual Price", color='blue')
-plt.plot(predictions, label="Predicted Price", color='red')
-plt.xlabel("Time")
-plt.ylabel("Price")
-plt.title("Actual vs Predicted Price (Test Set)")
-plt.legend()
-plt.grid(True)
+# ---- Step 10: Plot the Training Loss ----
+plt.plot(train_losses)
+plt.title("Training Loss")
+plt.xlabel("Epochs")
+plt.ylabel("Loss")
 plt.show()
 
-# Save the model in the "models" folder
-model_path = (Path(__file__).resolve().parent.parent / 'models' / 'RNN_model.pth').as_posix()
-Path(model_path).parent.mkdir(parents=True, exist_ok=True)  # Create the directory if it doesn't exist
-torch.save(model.state_dict(), model_path)
+# ---- Step 11: Inverse Normalization for Prediction Visualization ----
+# Rescale predictions back to original scale
+train_predictions_rescaled = target_scaler.inverse_transform(train_predictions.numpy())
+y_train_rescaled = target_scaler.inverse_transform(y_train.numpy())
+
+test_predictions_rescaled = target_scaler.inverse_transform(test_predictions.numpy())
+y_test_rescaled = target_scaler.inverse_transform(y_test.numpy())
+
+# ---- Step 12: Visualize Predictions vs. Ground Truth ----
+# Plot a few samples from the training set
+plt.figure(figsize=(12, 6))
+plt.plot(train_predictions_rescaled[0], label="Predicted", color='blue')
+plt.plot(y_train_rescaled[0], label="Actual", color='red')
+plt.title("Predicted vs Actual (First Sample from Training)")
+plt.legend()
+plt.show()
+
+# Plot a few samples from the test set
+plt.figure(figsize=(12, 6))
+plt.plot(test_predictions_rescaled[0], label="Predicted", color='blue')
+plt.plot(y_test_rescaled[0], label="Actual", color='red')
+plt.title("Predicted vs Actual (First Sample from Test)")
+plt.legend()
+plt.show()
