@@ -41,8 +41,8 @@ target_scaled = target_scaler.fit_transform(target_data)
 data_scaled = np.hstack((features_scaled, target_scaled))
 
 # ---- Step 3: Prepare Data Sequences ----
-seq_length = 50  # number of time steps in each input sequence
-pred_length = 5  # number of future steps to predict
+seq_length = 30  # number of time steps in each input sequence
+pred_length = 7  # number of future steps to predict
 
 X = []
 y = []
@@ -180,23 +180,25 @@ with torch.no_grad():
 predictions_rescaled = target_scaler.inverse_transform(predictions.numpy())
 y_test_rescaled = target_scaler.inverse_transform(y_test.numpy())
 
-"""
-# ---- Step 12: Calculate Accuracy Loss Based on a Threshold ----
-# TODO: fix accuracy based loss for a 5-step prediction
-def accuracy_based_loss(predictions, actuals, threshold):
-    accuracy = 0
-    corrects = 0
-    # Calculate the number of correct predictions within the threshold
-    for length in range(len(predictions)):
-        if abs(predictions[length] - actuals[length]) <= threshold*actuals[length]:
-            corrects += 1
-    # Calculate the loss as the ratio of incorrect predictions
-    accuracy = corrects / len(predictions)
-    return accuracy
+print(f"Predictions shape: {predictions_rescaled.shape}, y_test shape: {y_test_rescaled.shape}")
+print(f"Predictions: {predictions_rescaled[:5]}")
+print(f"Actual: {y_test_rescaled[:5]}")
 
-loss = accuracy_based_loss(predictions_rescaled, y_test_rescaled, threshold=0.02)  # 2% tolerance
-print(f'\nAccuracy - Test set (MLP): {loss*100:.4f}% of correct predictions within 2%\n')
-"""
+# TODO: fix Accuracy based loss and Graphic Visualization for a 5-step prediction
+#"""
+# ---- Step 12: Calculate Accuracy Loss Based on a Threshold ----
+threshold=0.05  # 5% tolerance
+accuracy = 0
+corrects = 0
+
+# Calculate the number of correct predictions within the threshold
+for length in range(len(predictions)):
+    if abs(predictions[length] - y_test[length]) <= threshold*y_test[length]:
+        corrects += 1
+
+# Calculate the loss as the ratio of incorrect predictions
+accuracy = corrects / len(predictions) * pred_length
+print(f'\nAccuracy - Test set (MLP): {accuracy*100:.4f}% of correct predictions within 2%\n')
 
 # ---- Step 13: Visualize Predictions vs. Ground Truth ----
 # Plot Actual vs Predicted Prices
@@ -209,6 +211,7 @@ plt.title("Actual vs Predicted Price (Test Set)")
 plt.legend()
 plt.grid(True)
 plt.show()
+#"""
 
 # Save the model in the "models" folder
 model_path = (Path(__file__).resolve().parent.parent / 'models' / 'RNN2_test_model.pth').as_posix()
