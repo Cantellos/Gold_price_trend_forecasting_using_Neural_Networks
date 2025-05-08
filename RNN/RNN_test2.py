@@ -102,33 +102,51 @@ criterion = nn.MSELoss()  # Mean Squared Error Loss for regression
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 
 # ---- Step 8: Training Loop ----
-num_epochs = 100
-train_losses = []
-val_losses = []
-# TODO: add evaluation, testing e graphics
+def train_model(model, X_train, y_train, X_val, y_val, criterion, optimizer, num_epochs):
 
-for epoch in range(num_epochs):
-    model.train()
-    optimizer.zero_grad()
-    # Forward pass
-    outputs = model(X_train)
-    if epoch == 0: print(f"outputs shape {outputs.shape}, y_train shape {y_train.shape}")
-    # Compute the loss
-    loss = criterion(outputs, y_train)  # Squeeze to remove the extra dimension in output
-    train_losses.append(loss.item())
-    # Backward pass and optimization
-    loss.backward()
-    optimizer.step()
+    train_losses = []
+    val_losses = []
+    patience = 20  # Number of epochs to wait for improvement
+    best_val_loss = float('inf')
+    epochs_no_improve = 0
 
-    # Validation
-    model.eval()
-    with torch.no_grad():
-        val_output = model(X_val)
-        val_loss = criterion(val_output, y_val)
-        val_losses.append(val_loss.item())
+    for epoch in range(num_epochs):
+        model.train()
+        optimizer.zero_grad()
+        # Forward pass
+        outputs = model(X_train)
+        if epoch == 0: print(f"outputs shape {outputs.shape}, y_train shape {y_train.shape}")
+        # Compute the loss
+        loss = criterion(outputs, y_train)  # Squeeze to remove the extra dimension in output
+        train_losses.append(loss.item())
+        # Backward pass and optimization
+        loss.backward()
+        optimizer.step()
 
-    if (epoch + 1) % 10 == 0:
-        print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {loss.item():.4f}")
+        # Validation
+        model.eval()
+        with torch.no_grad():
+            val_output = model(X_val)
+            val_loss = criterion(val_output, y_val)
+            val_losses.append(val_loss.item())
+
+        if (epoch + 1) % 10 == 0:
+            print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {loss.item():.4f}")
+
+        # Early stopping condition
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            epochs_no_improve = 0
+        else:
+            epochs_no_improve += 1
+
+        if epochs_no_improve >= patience:
+            print(f"Early stopping at epoch {epoch+1} due to no improvement in validation loss for {patience} epochs.")
+            break
+
+    return train_losses, val_losses
+
+    # TODO: add testing e graphics
 
 # ---- Step 9: Evaluate the Model ----
 model.eval()
