@@ -97,8 +97,8 @@ input_size = len(features)     # First 11 columns (input features)
 hidden_size = 128     # Hidden layer size
 num_layers = 1       # Number of RNN layers
 output_size = pred_length      # Output is the next time step for the last column (target)
-lr = 0.001          # Learning rate
-num_epochs = 500     # Number of epochs
+lr = 0.003        # Learning rate
+num_epochs = 300     # Number of epochs
 patience = 50        # Early stopping patience
 model = RNNModel(input_size, hidden_size, num_layers, output_size)
 
@@ -137,11 +137,11 @@ def train_model(model, X_train, y_train, X_val, y_val, criterion, optimizer, num
             val_losses.append(val_loss.item())
 
         if (epoch + 1) % 10 == 0:
-            print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {loss.item():.8f}")
+            print(f"Epoch [{epoch+1}/{num_epochs}], Train Loss: {loss.item():.8f}, Validation Loss: {val_loss.item():.8f}")
 
         # Early stopping condition
         if patience > 0:
-            if val_loss < best_val_loss:
+            if val_loss <= best_val_loss:
                 best_val_loss = val_loss
                 epochs_no_improve = 0
                 # Save the best model
@@ -159,7 +159,7 @@ train_losses, val_losses = train_model(model, X_train, y_train, X_val, y_val, cr
 
 
 # ---- Step 9: Plot the Training and Validation Losses ----
-starting_epoch = 50  # Start plotting from epoch 50
+starting_epoch = 100  # Start plotting from epoch 50
 plt.figure(figsize=(8, 5))
 plt.plot(range(starting_epoch, len(train_losses) + 1), train_losses[starting_epoch-1:], label='Train Loss', marker='o')
 plt.plot(range(starting_epoch, len(val_losses) + 1), val_losses[starting_epoch-1:], label='Validation Loss', marker='s')
@@ -234,6 +234,28 @@ plt.legend()
 plt.title("Predizione continua su 7 giorni per sequenze multiple")
 plt.xlabel("Tempo (giorni)")
 plt.ylabel("Prezzo")
+plt.grid(True)
+plt.show()
+
+from sklearn.metrics import mean_absolute_error
+
+errors = np.abs(pred_line - real_line)
+plt.plot(errors)
+plt.title("Errore assoluto nel tempo")
+plt.xlabel("Tempo (giorni)")
+plt.ylabel("Errore assoluto")
+plt.grid(True)
+plt.show()
+
+import seaborn as sns
+# Errore per posizione nella finestra
+position_errors = np.abs(predictions_rescaled - y_test_rescaled)
+mean_errors = position_errors.mean(axis=0)
+
+sns.barplot(x=np.arange(1, 8), y=mean_errors)
+plt.title("Errore medio per posizione nella finestra di 7 giorni")
+plt.xlabel("Giorno di previsione (1-7)")
+plt.ylabel("Errore assoluto medio")
 plt.grid(True)
 plt.show()
 
