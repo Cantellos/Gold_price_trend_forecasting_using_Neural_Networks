@@ -94,7 +94,9 @@ input_size = len(features)     # First 11 columns (input features)
 hidden_size = 64     # Hidden layer size
 num_layers = 2       # Number of RNN layers
 output_size = 5      # Output is the next time step for the last column (target)
-
+lr = 0.001           # Learning rate
+num_epochs = 100     # Number of epochs
+patience = 20        # Early stopping patience
 model = RNNModel(input_size, hidden_size, num_layers, output_size)
 
 # ---- Step 7: Loss Function and Optimizer ----
@@ -102,11 +104,10 @@ criterion = nn.MSELoss()  # Mean Squared Error Loss for regression
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 
 # ---- Step 8: Training Loop ----
-def train_model(model, X_train, y_train, X_val, y_val, criterion, optimizer, num_epochs):
+def train_model(model, X_train, y_train, X_val, y_val, criterion, optimizer, num_epochs, patience):
 
     train_losses = []
     val_losses = []
-    patience = 20  # Number of epochs to wait for improvement
     best_val_loss = float('inf')
     epochs_no_improve = 0
 
@@ -115,7 +116,7 @@ def train_model(model, X_train, y_train, X_val, y_val, criterion, optimizer, num
         optimizer.zero_grad()
         # Forward pass
         outputs = model(X_train)
-        if epoch == 0: print(f"outputs shape {outputs.shape}, y_train shape {y_train.shape}")
+        #if epoch == 0: print(f"outputs shape {outputs.shape}, y_train shape {y_train.shape}")
         # Compute the loss
         loss = criterion(outputs, y_train)  # Squeeze to remove the extra dimension in output
         train_losses.append(loss.item())
@@ -134,59 +135,82 @@ def train_model(model, X_train, y_train, X_val, y_val, criterion, optimizer, num
             print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {loss.item():.4f}")
 
         # Early stopping condition
-        if val_loss < best_val_loss:
-            best_val_loss = val_loss
-            epochs_no_improve = 0
-        else:
-            epochs_no_improve += 1
+        if patience > 0:
+            if val_loss < best_val_loss:
+                best_val_loss = val_loss
+                epochs_no_improve = 0
+            else:
+                epochs_no_improve += 1
 
-        if epochs_no_improve >= patience:
-            print(f"Early stopping at epoch {epoch+1} due to no improvement in validation loss for {patience} epochs.")
-            break
+            if epochs_no_improve >= patience:
+                print(f"Early stopping at epoch {epoch+1} due to no improvement in validation loss for {patience} epochs.")
+                break
 
     return train_losses, val_losses
 
-    # TODO: add testing e graphics
+train_losses, val_losses = train_model(model, X_train, y_train, X_val, y_val, criterion, optimizer, num_epochs, patience)
 
-# ---- Step 9: Evaluate the Model ----
+# TODO: add testing e graphics
+
+# ---- Step 9: Plot the Training and Validation Losses ----
+plt.figure(figsize=(8, 5))
+plt.plot(range(3, len(train_losses) + 1), train_losses[2:], label='Train Loss', marker='o')
+plt.plot(range(3, len(val_losses) + 1), val_losses[2:], label='Validation Loss', marker='s')
+plt.xlabel("Epoch")
+plt.ylabel("Loss")
+plt.title("Training and Validation Loss")
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
+loss_curve_path = (Path(__file__).resolve().parent.parent / 'images' / 'RNN_test_loss_curve.png').as_posix()
+Path(loss_curve_path).parent.mkdir(parents=True, exist_ok=True)  # Create the directory if it doesn't exist
+plt.savefig(loss_curve_path)
+plt.show()
+
+# ---- Step 10: Testing the Model ----
 model.eval()
 with torch.no_grad():
-    # Make predictions
-    train_predictions = model(X_train)
-    test_predictions = model(X_test)
-
-    # Compute test loss
-    test_loss = criterion(test_predictions, y_test)  # Squeeze to match the dimensions
-    print(f"Test Loss: {test_loss.item():.4f}")
-
-# ---- Step 10: Plot the Training Loss ----
-plt.plot(train_losses)
-plt.title("Training Loss")
-plt.xlabel("Epochs")
-plt.ylabel("Loss")
-plt.show()
+    # Make predictions on the test set
+    predictions = model(X_test)
+    test_loss = criterion(predictions, y_test)  # Squeeze to match the dimensions
+    print(f"MSE Test Loss: {test_loss.item():.4f}")
 
 # ---- Step 11: Inverse Normalization for Prediction Visualization ----
 # Rescale predictions back to original scale
-train_predictions_rescaled = target_scaler.inverse_transform(train_predictions.numpy())
-y_train_rescaled = target_scaler.inverse_transform(y_train.numpy())
-
-test_predictions_rescaled = target_scaler.inverse_transform(test_predictions.numpy())
+predictions_rescaled = target_scaler.inverse_transform(predictions.numpy())
 y_test_rescaled = target_scaler.inverse_transform(y_test.numpy())
 
-# ---- Step 12: Visualize Predictions vs. Ground Truth ----
-# Plot a few samples from the training set
+"""
+# ---- Step 12: Calculate Accuracy Loss Based on a Threshold ----
+# TODO: fix accuracy based loss for a 5-step prediction
+def accuracy_based_loss(predictions, actuals, threshold):
+    accuracy = 0
+    corrects = 0
+    # Calculate the number of correct predictions within the threshold
+    for length in range(len(predictions)):
+        if abs(predictions[length] - actuals[length]) <= threshold*actuals[length]:
+            corrects += 1
+    # Calculate the loss as the ratio of incorrect predictions
+    accuracy = corrects / len(predictions)
+    return accuracy
+
+loss = accuracy_based_loss(predictions_rescaled, y_test_rescaled, threshold=0.02)  # 2% tolerance
+print(f'\nAccuracy - Test set (MLP): {loss*100:.4f}% of correct predictions within 2%\n')
+"""
+
+# ---- Step 13: Visualize Predictions vs. Ground Truth ----
+# Plot Actual vs Predicted Prices
 plt.figure(figsize=(12, 6))
-plt.plot(train_predictions_rescaled[0], label="Predicted", color='blue')
-plt.plot(y_train_rescaled[0], label="Actual", color='red')
-plt.title("Predicted vs Actual (First Sample from Training)")
+plt.plot(y_test_rescaled, label="Actual Price", color='blue')
+plt.plot(predictions, label="Predicted Price", color='red')
+plt.xlabel("Time")
+plt.ylabel("Price")
+plt.title("Actual vs Predicted Price (Test Set)")
 plt.legend()
+plt.grid(True)
 plt.show()
 
-# Plot a few samples from the test set
-plt.figure(figsize=(12, 6))
-plt.plot(test_predictions_rescaled[0], label="Predicted", color='blue')
-plt.plot(y_test_rescaled[0], label="Actual", color='red')
-plt.title("Predicted vs Actual (First Sample from Test)")
-plt.legend()
-plt.show()
+# Save the model in the "models" folder
+model_path = (Path(__file__).resolve().parent.parent / 'models' / 'RNN2_test_model.pth').as_posix()
+Path(model_path).parent.mkdir(parents=True, exist_ok=True)  # Create the directory if it doesn't exist
+torch.save(model.state_dict(), model_path)
