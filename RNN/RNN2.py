@@ -75,6 +75,8 @@ y_train = y[:train_size]
 y_val = y[train_size:train_size + val_size]
 y_test = y[train_size + val_size:]
 
+# Print x and y shapes
+#print(f"X_train shape: {X_train.shape}, y_train: {y_train.shape}")
 
 # ---- Step 5: Define the RNN Model ----
 class RNNModel(nn.Module):
@@ -93,9 +95,9 @@ class RNNModel(nn.Module):
 input_size = len(features)     # First 11 columns (input features)
 hidden_size = 64     # Hidden layer size
 num_layers = 2       # Number of RNN layers
-output_size = 5      # Output is the next time step for the last column (target)
+output_size = pred_length      # Output is the next time step for the last column (target)
 lr = 0.001           # Learning rate
-num_epochs = 100     # Number of epochs
+num_epochs = 50     # Number of epochs
 patience = 20        # Early stopping patience
 model = RNNModel(input_size, hidden_size, num_layers, output_size)
 
@@ -181,20 +183,18 @@ predictions_rescaled = target_scaler.inverse_transform(predictions.numpy())
 y_test_rescaled = target_scaler.inverse_transform(y_test.numpy())
 
 print(f"Predictions shape: {predictions_rescaled.shape}, y_test shape: {y_test_rescaled.shape}")
-print(f"Predictions: {predictions_rescaled[:5]}")
-print(f"Actual: {y_test_rescaled[:5]}")
 
 # TODO: fix Accuracy based loss and Graphic Visualization for a 5-step prediction
 #"""
 # ---- Step 12: Calculate Accuracy Loss Based on a Threshold ----
-threshold=0.05  # 5% tolerance
-accuracy = 0
+threshold = 0.05  # 5% tolerance
 corrects = 0
 
 # Calculate the number of correct predictions within the threshold
 for length in range(len(predictions)):
-    if abs(predictions[length] - y_test[length]) <= threshold*y_test[length]:
-        corrects += 1
+    for i in (0, pred_length-1):
+        if abs(predictions[length][i] - y_test[length][i]) <= threshold*y_test[length][i]:
+            corrects += 1
 
 # Calculate the loss as the ratio of incorrect predictions
 accuracy = corrects / len(predictions) * pred_length
@@ -203,8 +203,8 @@ print(f'\nAccuracy - Test set (MLP): {accuracy*100:.4f}% of correct predictions 
 # ---- Step 13: Visualize Predictions vs. Ground Truth ----
 # Plot Actual vs Predicted Prices
 plt.figure(figsize=(12, 6))
-plt.plot(y_test_rescaled, label="Actual Price", color='blue')
-plt.plot(predictions, label="Predicted Price", color='red')
+plt.plot(y_test_rescaled[0], label="Actual Price", color='blue')
+plt.plot(predictions[0], label="Predicted Price", color='red')
 plt.xlabel("Time")
 plt.ylabel("Price")
 plt.title("Actual vs Predicted Price (Test Set)")
