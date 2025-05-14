@@ -106,11 +106,11 @@ class RNNModel(nn.Module):
 # ---- Step 6: Model Initialization and Hyperparameters ----
 input_size = len(features)     # First 11 columns (input features)
 hidden_size = 128     # Hidden layer size
-num_layers = 1       # Number of RNN layers
+num_layers = 2       # Number of RNN layers
 output_size = pred_length      # Output is the next time step for the last column (target)
-lr = 0.003        # Learning rate
-num_epochs = 300     # Number of epochs
-patience = 50        # Early stopping patience
+lr = 0.001        # Learning rate
+num_epochs = 100     # Number of epochs
+patience = 20        # Early stopping patience
 model = RNNModel(input_size, hidden_size, num_layers, output_size)
 
 
@@ -156,12 +156,12 @@ def train_model(model, X_train, y_train, X_val, y_val, criterion, optimizer, num
         val_losses.append(val_loss)
 
         if (epoch + 1) % 10 == 0:
-            print(f"Epoch [{epoch+1}/{num_epochs}], Train Loss: {loss.item():.8f}, Validation Loss: {val_loss.item():.8f}")
+            print(f"Epoch [{epoch+1}/{num_epochs}], Train Loss: {train_losses[-1]:.8f}, Validation Loss: {val_losses[-1]:.8f}")
 
         # Early stopping condition
         if patience > 0:
-            if val_loss <= best_val_loss:
-                best_val_loss = val_loss
+            if val_losses[-1] <= best_val_loss:
+                best_val_loss = val_losses[-1]
                 epochs_no_improve = 0
                 # Save the best model
                 torch.save(model.state_dict(), 'RNN2_model.pth')
@@ -178,7 +178,7 @@ train_losses, val_losses = train_model(model, X_train, y_train, X_val, y_val, cr
 
 
 # ---- Step 9: Plot the Training and Validation Losses ----
-starting_epoch = 100  # Start plotting from epoch 50
+starting_epoch = 2  # Start plotting from epoch 50
 plt.figure(figsize=(8, 5))
 plt.plot(range(starting_epoch, len(train_losses) + 1), train_losses[starting_epoch-1:], label='Train Loss', marker='o')
 plt.plot(range(starting_epoch, len(val_losses) + 1), val_losses[starting_epoch-1:], label='Validation Loss', marker='s')
@@ -218,8 +218,6 @@ print(f"MSE Test Loss: {test_loss:.4f}")
 predictions = torch.cat(predictions_list, dim=0)
 y_test = torch.cat(targets_list, dim=0)
 
-print(f"MSE Test Loss: {test_loss.item():.4f}")
-
 
 # ---- Step 11: Inverse Normalization for Prediction Visualization ----
 # Rescale predictions back to original scale
@@ -228,7 +226,7 @@ y_test_rescaled = target_scaler.inverse_transform(y_test.numpy())
 
 
 # ---- Step 12: Calculate Accuracy Loss Based on a Threshold ----
-threshold = 5  # % of tolerance
+threshold = 10  # % of tolerance
 corrects = 0
 
 # Calculate the number of correct predictions within the threshold
