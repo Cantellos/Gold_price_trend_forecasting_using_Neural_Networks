@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from sklearn.preprocessing import MinMaxScaler
-from sklearn.model_selection import train_test_split
+from torch.utils.data import DataLoader, TensorDataset
 import matplotlib.pyplot as plt
 import pandas as pd
 from pathlib import Path
@@ -21,7 +21,7 @@ file_path = (Path(__file__).resolve().parent.parent / '.data' / 'dataset' / 'XAU
 data = pd.read_csv(file_path)
 
 # Separate features and target
-features = ['Open', 'High', 'Low', 'Close', 'Volume', 'MA_200', 'EMA_12-26', 'EMA_50-200', '%K', '%D', 'RSI']
+features = ['Open', 'High', 'Low', 'Close', 'Volume', 'MA_200', 'EMA_12-26', 'EMA_50-200', 'RSI']
 target = 'future_close'
 
 
@@ -78,6 +78,17 @@ y_train = y[:train_size]
 y_val = y[train_size:train_size + val_size]
 y_test = y[train_size + val_size:]
 
+# Convert to DataLoader for batching
+batch_size = 32
+
+train_dataset = TensorDataset(X_train, y_train)
+train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+
+val_dataset = TensorDataset(X_val, y_val)
+val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+
+test_dataset = TensorDataset(X_test, y_test)
+test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
 # ---- Step 5: Define the RNN Model ----
 class RNNModel(nn.Module):
@@ -117,24 +128,32 @@ def train_model(model, X_train, y_train, X_val, y_val, criterion, optimizer, num
     epochs_no_improve = 0
 
     for epoch in range(num_epochs):
+        train_loss = 0
         model.train()
-        optimizer.zero_grad()
-        # Forward pass
-        outputs = model(X_train)
-        #if epoch == 0: print(f"outputs shape {outputs.shape}, y_train shape {y_train.shape}")
-        # Compute the loss
-        loss = criterion(outputs, y_train)  # Squeeze to remove the extra dimension in output
-        train_losses.append(loss.item())
-        # Backward pass and optimization
-        loss.backward()
-        optimizer.step()
+        for batch_X, batch_y in train_loader:
+            optimizer.zero_grad()
+            batch_X, batch_y = batch_X.to(device), batch_y.to(device)
+            outputs = model(batch_X)
+            loss = criterion(outputs, batch_y)
+            loss.backward()
+            optimizer.step()
+            train_loss += loss.item() * batch_X.size(0)
+
+        train_loss /= len(train_loader.dataset)
+        train_losses.append(train_loss)
 
         # Validation
+        val_loss = 0
         model.eval()
         with torch.no_grad():
-            val_output = model(X_val)
-            val_loss = criterion(val_output, y_val)
-            val_losses.append(val_loss.item())
+            for val_X, val_y in val_loader:
+                val_X, val_y = val_X.to(device), val_y.to(device)
+                val_output = model(val_X)
+                loss = criterion(val_output, val_y)
+                val_loss += loss.item() * val_X.size(0)
+
+        val_loss /= len(val_loader.dataset)
+        val_losses.append(val_loss)
 
         if (epoch + 1) % 10 == 0:
             print(f"Epoch [{epoch+1}/{num_epochs}], Train Loss: {loss.item():.8f}, Validation Loss: {val_loss.item():.8f}")
@@ -180,11 +199,26 @@ plt.show()
 model.load_state_dict(torch.load('RNN2_model.pth', weights_only=True))
 
 model.eval()
+predictions_list = []
+targets_list = []
+test_loss = 0
+
 with torch.no_grad():
-    # Make predictions on the test set
-    predictions = model(X_test)
-    test_loss = criterion(predictions, y_test)  # Squeeze to match the dimensions
-    print(f"MSE Test Loss: {test_loss.item():.4f}")
+    for batch_X, batch_y in test_loader:
+        batch_X, batch_y = batch_X.to(device), batch_y.to(device)
+        batch_preds = model(batch_X)
+        predictions_list.append(batch_preds.cpu())
+        targets_list.append(batch_y.cpu())
+        test_loss += criterion(batch_preds, batch_y).item() * batch_X.size(0)
+
+test_loss /= len(test_loader.dataset)
+print(f"MSE Test Loss: {test_loss:.4f}")
+
+# Concatena tutte le previsioni e target
+predictions = torch.cat(predictions_list, dim=0)
+y_test = torch.cat(targets_list, dim=0)
+
+print(f"MSE Test Loss: {test_loss.item():.4f}")
 
 
 # ---- Step 11: Inverse Normalization for Prediction Visualization ----
