@@ -8,12 +8,6 @@ from pathlib import Path
 
 # TODO: finding loss + optimizer combo with best performance
 
-# Set the device for execution on GPU if available
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print(f"Using device: {device}")
-
-pd.options.mode.copy_on_write = True
-
 
 # ===== 0. Loading and Normalizing the Dataset =====
 # Load the dataset
@@ -89,10 +83,10 @@ criterion = nn.MSELoss()
 optimizer = optim.RMSprop(model.parameters(), lr)
 
 # ===== 3. Training Function =====
-def train_model(model, train_x, train_y, val_x, val_y, criterion, optimizer, num_epochs):
+def train_model(model, train_x, train_y, val_x, val_y, criterion, optimizer, num_epochs, patience):
     train_losses = []
     val_losses = []
-    patience = 5  # Number of epochs to wait for improvement
+    patience = patience  # Number of epochs to wait for improvement
     best_val_loss = float('inf')
     epochs_no_improve = 0
     best_model_state = None
@@ -135,7 +129,7 @@ def train_model(model, train_x, train_y, val_x, val_y, criterion, optimizer, num
     
     # At the end save the best model to disk
     if best_model_state is not None:
-        model_path = (Path(__file__).resolve().parent.parent / 'models' / 'best_MLP_model.pth').as_posix()
+        model_path = (Path(__file__).resolve().parent.parent / 'models' / 'MLP2_model.pth').as_posix()
         Path(model_path).parent.mkdir(parents=True, exist_ok=True)  # Create the directory if it doesn't exist
         torch.save(best_model_state, model_path)
         print("📁 Best model weights saved to disk.")
@@ -144,14 +138,16 @@ def train_model(model, train_x, train_y, val_x, val_y, criterion, optimizer, num
 
 
 # ===== 4. Training the Model =====
-num_epochs = 20
-train_losses, val_losses = train_model(model, train_x, train_y, val_x, val_y, criterion, optimizer, num_epochs)
+num_epochs = 500
+patience = 100
+train_losses, val_losses = train_model(model, train_x, train_y, val_x, val_y, criterion, optimizer, num_epochs, patience)
 
 
 # ===== 5. Plotting the Losses =====
+starting_epoch = 50  # Start plotting from epoch 50
 plt.figure(figsize=(11,6))
-plt.plot(range(3, len(train_losses) + 1), train_losses[2:], label='Train Loss', marker='o')
-plt.plot(range(3, len(val_losses) + 1), val_losses[2:], label='Validation Loss', marker='s')
+plt.plot(range(starting_epoch, len(train_losses) + 1), train_losses[starting_epoch-1:], label='Train Loss', marker='o')
+plt.plot(range(starting_epoch, len(val_losses) + 1), val_losses[starting_epoch-1:], label='Validation Loss', marker='s')
 plt.legend()
 plt.xlabel('Epochs')
 plt.ylabel('Loss')
@@ -160,7 +156,7 @@ plt.show()
 
 
 # ===== 6. Testing the Model =====
-model_path = (Path(__file__).resolve().parent.parent / 'models' / 'best_MLP_model.pth').as_posix()
+model_path = (Path(__file__).resolve().parent.parent / 'models' / 'MLP2_model.pth').as_posix()
 model.load_state_dict(torch.load(model_path, weights_only=False))
 model.eval()
 
@@ -185,12 +181,14 @@ def accuracy_based_loss(predictions, targets, threshold):
             corrects += 1
     # Calculate the loss as the ratio of incorrect predictions
     accuracy = corrects / len(predictions)
+    print(f"Correct predictions: {corrects}, Total predictions: {len(predictions)}")
     return accuracy
 
+threshold = 0.02  # 5% tolerance
 predictions = scaler.inverse_transform(predictions)  # Inverse transform to get actual prices
 actuals = scaler.inverse_transform(test_y)  # Inverse transform to get actual prices
-loss = accuracy_based_loss(predictions, actuals, threshold=0.02)  # 2% tolerance
-print(f'\nAccuracy - Test set (MLP): {loss*100:.4f}% of correct predictions within 2%\n')
+loss = accuracy_based_loss(predictions, actuals, threshold=threshold)
+print(f'\nAccuracy - Test set (MLP): {loss*100:.4f}% of correct predictions within {threshold*100}%\n')
 
 
 # Plot Actual vs Predicted Prices

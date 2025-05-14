@@ -43,8 +43,8 @@ data_scaled = np.hstack((features_scaled, target_scaled))
 
 
 # ---- Step 3: Prepare Data Sequences ----
-seq_length = 30  # number of time steps in each input sequence
-pred_length = 7  # number of future steps to predict
+seq_length = 1  # number of time steps in each input sequence
+pred_length = 1  # number of future steps to predict
 
 X = []
 y = []
@@ -105,8 +105,8 @@ class RNNModel(nn.Module):
 
 # ---- Step 6: Model Initialization and Hyperparameters ----
 input_size = len(features)     # First 11 columns (input features)
-hidden_size = 128     # Hidden layer size
-num_layers = 2       # Number of RNN layers
+hidden_size = 64     # Hidden layer size
+num_layers = 1       # Number of RNN layers
 output_size = pred_length      # Output is the next time step for the last column (target)
 lr = 0.001        # Learning rate
 num_epochs = 100     # Number of epochs
