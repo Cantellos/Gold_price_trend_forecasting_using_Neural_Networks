@@ -14,22 +14,23 @@ data = pd.read_csv(file_path)
 features = ['Open', 'High', 'Low', 'Close', 'Volume', 'MA_200', 'EMA_12-26', 'EMA_50-200', '%K', '%D', 'RSI']
 target = 'future_close'
 
+# Split the dataset into 70% training, 15% validation, 15% testing
 train_size = int(len(data) * 0.7)
 val_size = int(len(data) * 0.15)
 training = data[:train_size]
 validation = data[train_size:train_size + val_size]
 testing = data[train_size + val_size:]
 
+# Normalize the features using MinMaxScaler
 scaler = MinMaxScaler()
 scaler.fit(training[features])
 train_data = scaler.transform(training[features])
 val_data = scaler.transform(validation[features])
 test_data = scaler.transform(testing[features])
 
-scaler.fit(training[[target]])
-train_target = scaler.transform(training[[target]])
-val_target = scaler.transform(validation[[target]])
-test_target = scaler.transform(testing[[target]])
+train_target = training[[target]].values
+val_target = validation[[target]].values
+test_target = testing[[target]].values
 
 def create_tensor_dataset(data, target):
     x = torch.tensor(data, dtype=torch.float32)
@@ -41,7 +42,7 @@ val_dataset = create_tensor_dataset(val_data, val_target)
 test_dataset = create_tensor_dataset(test_data, test_target)
 
 batch_size = 32
-train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False)
 val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
@@ -59,7 +60,7 @@ class FullyConnected(nn.Module):
         return out
 
 input_size = len(features)
-hidden_size = 128
+hidden_size = 64
 output_size = 1
 lr = 0.001
 
@@ -125,27 +126,33 @@ num_epochs = 350
 patience = 50
 train_losses, val_losses = train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs, patience)
 
-# ===== 5. Plotting the Losses =====
-starting_epoch = 3  # Start plotting from epoch 50
+
+# ===== Plotting the Losses =====
+starting_epoch = 75  # Start plotting from this epoch for graphic reasons
 plt.figure(figsize=(11,6))
 plt.plot(range(starting_epoch, len(train_losses) + 1), train_losses[starting_epoch-1:], label='Train Loss', marker='o')
 plt.plot(range(starting_epoch, len(val_losses) + 1), val_losses[starting_epoch-1:], label='Validation Loss', marker='s')
 plt.legend()
 plt.xlabel('Epochs')
 plt.ylabel('Loss')
-plt.title('Training and Validation Loss (excluding first 2 for graphic reasons)')
+plt.title(f'Training and Validation Loss (excluding first {starting_epoch} epochs for graphic reasons)')
 plt.show()
 
+
+# ===== Testing the Model =====
+# Load the best model weights
 model_path = (Path(__file__).resolve().parent.parent / 'models' / 'MLP2_model.pth').as_posix()
 model.load_state_dict(torch.load(model_path))
-model.eval()
 
+# Evaluate the model on the test set
+model.eval()
 predictions = []
 actuals = []
 test_loss = 0.0
 with torch.no_grad():
     for xb, yb in test_loader:
-        output = model(xb)
+        output = model(xb).squeeze()  # squeeze to remove extra dimension
+        yb = yb.squeeze()             # and have them as a 1D tensor already
         test_loss += criterion(output, yb).item()
         predictions.extend(output.tolist())
         actuals.extend(yb.tolist())
@@ -153,22 +160,23 @@ with torch.no_grad():
 test_loss /= len(test_loader)
 print(f'\n📊 MSE Loss - Test set (MLP): {test_loss:.6f}')
 
-predictions = scaler.inverse_transform(predictions)
-actuals = scaler.inverse_transform(actuals)
 
+# ===== Accuracy-based Loss Calculation =====
 def accuracy_based_loss(predictions, targets, threshold):
     corrects = 0
     for i in range(len(predictions)):
-        if abs(predictions[i] - targets[i]) <= threshold * targets[i]:
+        if abs(predictions[i] - targets[i]) <= threshold/100 * targets[i]:
             corrects += 1
     accuracy = corrects / len(predictions)
     print(f"Correct predictions: {corrects}, Total predictions: {len(predictions)}")
     return accuracy
 
-threshold = 0.02
+threshold = 2 # % threshold for accuracy
 accuracy = accuracy_based_loss(predictions, actuals, threshold)
-print(f'\nAccuracy - Test set (MLP): {accuracy * 100:.4f}% of correct predictions within {threshold * 100}%')
+print(f'\nAccuracy - Test set (MLP): {accuracy*100:.4f}% of correct predictions within {threshold}%')
 
+
+# ===== Plotting Predictions vs Actuals values =====
 plt.figure(figsize=(12, 6))
 plt.plot(actuals, label='Actual', color='blue')
 plt.plot(predictions, label='Predicted', color='red')
