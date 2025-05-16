@@ -1,44 +1,14 @@
+import sys
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import pandas as pd
-from sklearn.preprocessing import MinMaxScaler
-from torch.utils.data import DataLoader, TensorDataset
 import matplotlib.pyplot as plt
 from pathlib import Path
+sys.path.append(str(Path(__file__).resolve().parent.parent))
 from data.data_processing import load_and_process_data
 
 # ===== Loading, Processing and Normalizing the Dataset =====
-training, validation, testing, features, target = load_and_process_data('XAU_1d_data.csv')
-
-# Normalize the features using MinMaxScaler
-scaler = MinMaxScaler()
-scaler.fit(training[features])
-
-train_data = scaler.transform(training[features])
-val_data = scaler.transform(validation[features])
-test_data = scaler.transform(testing[features])
-
-train_target = training[[target]].values
-val_target = validation[[target]].values
-test_target = testing[[target]].values
-
-# Create TensorDataset
-def create_tensor_dataset(data, target):
-    x = torch.tensor(data, dtype=torch.float32)
-    y = torch.tensor(target, dtype=torch.float32)
-    return TensorDataset(x, y)
-
-train_dataset = create_tensor_dataset(train_data, train_target)
-val_dataset = create_tensor_dataset(val_data, val_target)
-test_dataset = create_tensor_dataset(test_data, test_target)
-
-# Create DataLoader for each dataset
-batch_size = 32
-train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False)
-val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
-test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
-
+train_loader, val_loader, test_loader, features, target = load_and_process_data('XAU_1d_data.csv')
 
 # ===== Building the MLP Model =====
 class FullyConnected(nn.Module):

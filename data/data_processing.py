@@ -1,15 +1,12 @@
 import torch
-import torch.nn as nn
-import torch.optim as optim
 import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
 from torch.utils.data import DataLoader, TensorDataset
-import matplotlib.pyplot as plt
 from pathlib import Path
 
 def load_and_process_data(filename):
     # ===== Loading, Processing and Normalizing the Dataset =====
-    file_path = (Path(__file__).resolve().parent / 'dataset' / filename).as_posix()
+    file_path = (Path(__file__).resolve().parent.parent / 'data' / 'dataset' / filename).as_posix()
     data = pd.read_csv(file_path)
 
     features = ['Open', 'High', 'Low', 'Close', 'Volume', 'MA_50', 'MA_200', 'EMA_50', 'EMA_200', 'RSI']
@@ -67,4 +64,4 @@ def load_and_process_data(filename):
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
     
-    return train_loader, val_loader, test_loader, features, target, batch_size, scaler
+    return train_loader, val_loader, test_loader, features, target
