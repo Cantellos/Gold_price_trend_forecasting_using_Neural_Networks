@@ -122,13 +122,14 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
 
     return train_losses, val_losses
 
-num_epochs = 350
+# Start training
+num_epochs = 300
 patience = 50
 train_losses, val_losses = train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs, patience)
 
 
 # ===== Plotting the Losses =====
-starting_epoch = 75  # Start plotting from this epoch for graphic reasons
+starting_epoch = 30  # Start plotting from this epoch for graphic reasons
 plt.figure(figsize=(11,6))
 plt.plot(range(starting_epoch, len(train_losses) + 1), train_losses[starting_epoch-1:], label='Train Loss', marker='o')
 plt.plot(range(starting_epoch, len(val_losses) + 1), val_losses[starting_epoch-1:], label='Validation Loss', marker='s')
@@ -171,7 +172,7 @@ def accuracy_based_loss(predictions, targets, threshold):
     print(f"Correct predictions: {corrects}, Total predictions: {len(predictions)}")
     return accuracy
 
-threshold = 2 # % threshold for accuracy
+threshold = 1 # % threshold for accuracy
 accuracy = accuracy_based_loss(predictions, actuals, threshold)
 print(f'\nAccuracy - Test set (MLP): {accuracy*100:.4f}% of correct predictions within {threshold}%')
 
