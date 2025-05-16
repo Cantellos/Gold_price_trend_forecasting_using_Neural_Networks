@@ -8,13 +8,14 @@ for file in files:
 
     # CALCULATE FINANCIAL INDICATORS
     # MA: Moving Average
+    data['MA_50'] = data['Close'].rolling(window=50).mean()
     data['MA_200'] = data['Close'].rolling(window=200).mean()
 
     # EMA: Exponential Moving Average
     # EMA_12-26: 12-day EMA - 26-day EMA
-    data['EMA_12'] = data['Close'].ewm(span=12, adjust=False).mean()
-    data['EMA_26'] = data['Close'].ewm(span=26, adjust=False).mean()
-    data['EMA_12-26'] = data['EMA_12'] - data['EMA_26']
+    #data['EMA_12'] = data['Close'].ewm(span=12, adjust=False).mean()
+    #data['EMA_26'] = data['Close'].ewm(span=26, adjust=False).mean()
+    #data['EMA_12-26'] = data['EMA_12'] - data['EMA_26']
     # EMA 50-200
     data['EMA_50'] = data['Close'].ewm(span=50, adjust=False).mean()
     data['EMA_200'] = data['Close'].ewm(span=200, adjust=False).mean()
@@ -38,12 +39,11 @@ for file in files:
     rs = avg_gain / avg_loss
     data['RSI'] = 100 - (100 / (1 + rs))
 
-    # Add Target variable (shifted because it's the future price, not current)
-    data['future_close'] = data['Close'].shift(-1)
-
     # Save the data with the financial indicators to a new CSV file without rows with missing values
     data = data.dropna()
     data.to_csv(file, index=False)
+
+    print(f"Financial indicators added and saved to {file}")
 
 #TODO: Add Fibonacci retracement levels
 #TODO: Add Bollinger bands retracement levels

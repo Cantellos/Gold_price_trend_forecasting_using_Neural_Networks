@@ -24,3 +24,5 @@ for file in files:
 
     # Save the cleaned data to a new CSV file
     df_clean.to_csv(file, index=False)
+
+    print(f"Cleaned data saved to {file}")

@@ -11,19 +11,16 @@ from pathlib import Path
 file_path = (Path(__file__).resolve().parent.parent / '.data' / 'dataset' / 'XAU_1d_data.csv').as_posix()
 data = pd.read_csv(file_path)
 
-features = ['Open', 'High', 'Low', 'Close', 'Volume', 'MA_200', 'EMA_12-26', 'EMA_50-200', 'RSI']
-target = 'future_close'
-
 # Plotting the dataset and financial indicators
 plt.figure(figsize=(12, 6))
 plt.plot(data['Close'], label='Close Price', color='blue')
-plt.plot(data['MA_200'], label='MA 200', color='orange')
-#plt.plot(data['EMA_50'], label='EMA 12-26', color='green')
-plt.plot(data['EMA_200'], label='EMA 50-200', color='red')
-#plt.plot(data['RSI'], label='RSI', color='pink')
+plt.plot(data['MA_50'], label='MA 50', color='orange')
+plt.plot(data['MA_200'], label='MA 200', color='purple')
+plt.plot(data['EMA_26'], label='EMA 50', color='green')
+plt.plot(data['EMA_200'], label='EMA 200', color='red')
 plt.xlabel('Date')
 plt.ylabel('Price')
-plt.title('Close Price Over Time')
+plt.title('Close Price and Financial Indicators Over Time')
 plt.legend()
 plt.grid(True)
 plt.show()
