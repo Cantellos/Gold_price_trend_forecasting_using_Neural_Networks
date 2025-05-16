@@ -4,13 +4,20 @@ from pathlib import Path
 dataset_dir = Path(__file__).parent / 'dataset'
 files = list(dataset_dir.glob('*.csv'))
 
+# --- Data Cleaning ---
 for file in files:
     # Load the data from the CSV file
     df = pd.read_csv(file)
 
-    # Drop useless columns (Date and Time), add Target variable (shifted because it has to be the future price, not current) and drop NaN values
-    df = df.drop(['Date', 'Time'], axis=1)
-    df['future_close'] = df['Close'].shift(-1)
+    # Divide the single column into 6 columns by splitting on ';'
+    if len(df.columns) == 1:
+        columns = df.columns[0].split(';')
+        df = df[df.columns[0]].str.split(';', expand=True)
+        df.columns = columns
+
+    # Drop useless Date column
+    if 'Date' in df.columns:
+        df.drop(columns=['Date'], inplace=True)
 
     # Drop the rows with missing values (some indicators require a certain number of previous values)
     df_clean = df.dropna()
