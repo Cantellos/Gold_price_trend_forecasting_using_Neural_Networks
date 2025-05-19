@@ -13,9 +13,9 @@ for file in files:
 
     # EMA: Exponential Moving Average
     # EMA_12-26: 12-day EMA - 26-day EMA
-    #data['EMA_12'] = data['Close'].ewm(span=12, adjust=False).mean()
-    #data['EMA_26'] = data['Close'].ewm(span=26, adjust=False).mean()
-    #data['EMA_12-26'] = data['EMA_12'] - data['EMA_26']
+    data['EMA_12'] = data['Close'].ewm(span=12, adjust=False).mean()
+    data['EMA_26'] = data['Close'].ewm(span=26, adjust=False).mean()
+    data['EMA_12-26'] = data['EMA_12'] - data['EMA_26']
     # EMA 50-200
     data['EMA_50'] = data['Close'].ewm(span=50, adjust=False).mean()
     data['EMA_200'] = data['Close'].ewm(span=200, adjust=False).mean()

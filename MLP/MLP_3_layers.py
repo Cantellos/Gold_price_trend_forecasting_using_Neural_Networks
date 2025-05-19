@@ -1,5 +1,4 @@
 import sys
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -8,37 +7,38 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 from data.data_processing import load_and_process_data
 
-
 # ===== Loading, Processing and Normalizing the Dataset =====
 train_loader, val_loader, test_loader, features, target = load_and_process_data('XAU_1d_data.csv')
 
-
 # ===== Building the MLP Model =====
+import torch.nn as nn
+
 class FullyConnected(nn.Module):
-    def __init__(self, input_size, hidden_size, output_size):
+    def __init__(self, input_size, hidden_size1, hidden_size2, output_size):
         super(FullyConnected, self).__init__()
-        self.fc1 = nn.Linear(input_size, hidden_size)
-        #self.relu = nn.ReLU()
-        # self.relu = nn.LeakyReLU()
-        self.relu = nn.ELU()
-        self.fc2 = nn.Linear(hidden_size, output_size)
+        self.fc1 = nn.Linear(input_size, hidden_size1)
+        self.relu1 = nn.ReLU()
+        self.fc2 = nn.Linear(hidden_size1, hidden_size2)
+        self.relu2 = nn.ReLU()
+        self.fc3 = nn.Linear(hidden_size2, output_size)
 
     def forward(self, x):
         out = self.fc1(x)
-        out = self.relu(out)
+        out = self.relu1(out)
         out = self.fc2(out)
+        out = self.relu2(out)
+        out = self.fc3(out)
         return out
 
 input_size = len(features)
-hidden_size = 64
+hidden_size1 = 64
+hidden_size2 = 32
 output_size = 1
 lr = 0.001
 
-model = FullyConnected(input_size, hidden_size, output_size)
-#criterion = nn.MSELoss()
-criterion = nn.SmoothL1Loss()
-#optimizer = optim.RMSprop(model.parameters(), lr)
-optimizer = optim.Adam(model.parameters(), lr)
+model = FullyConnected(input_size, hidden_size1, hidden_size2, output_size)
+criterion = nn.MSELoss()
+optimizer = optim.RMSprop(model.parameters(), lr)
 
 # ===== Training the Model =====
 def train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs, patience):
@@ -98,8 +98,8 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
     return train_losses, val_losses
 
 # Start training
-num_epochs = 1000
-patience = 50
+num_epochs = 300
+patience = 30
 train_losses, val_losses = train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs, patience)
 
 
@@ -118,7 +118,7 @@ plt.show()
 # ===== Testing the Model =====
 # Load the best model weights
 model_path = (Path(__file__).resolve().parent.parent / 'models' / 'MLP_model.pth').as_posix()
-model.load_state_dict(torch.load(model_path, weights_only=False))
+model.load_state_dict(torch.load(model_path))
 
 # Evaluate the model on the test set
 model.eval()
