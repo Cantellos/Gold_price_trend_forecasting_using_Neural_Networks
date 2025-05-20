@@ -80,12 +80,12 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
             best_val_loss = val_loss
             epochs_no_improve = 0
             best_model_state = model.state_dict()
-            print("✅ New best val_loss. Model weights saved in memory.")
+            print("New best val_loss. Model weights saved in memory.")
         else:
             epochs_no_improve += 1
-            print(f"⏳ No improvement: {epochs_no_improve}/{patience}")
+            print(f"No improvement: {epochs_no_improve}/{patience}")
             if epochs_no_improve >= patience:
-                print(f"⛔ Early stopping triggered at epoch {epoch+1}.")
+                print(f"Early stopping triggered at epoch {epoch+1}.")
                 break
     
     # Model checkpointing             
@@ -93,7 +93,7 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
         model_path = (Path(__file__).resolve().parent.parent / 'models' / 'MLP_model.pth').as_posix()
         Path(model_path).parent.mkdir(parents=True, exist_ok=True)
         torch.save(best_model_state, model_path)
-        print("📁 Best model weights saved to disk.")
+        print("Best model weights saved to disk.")
 
     return train_losses, val_losses
 
@@ -134,7 +134,7 @@ with torch.no_grad():
         actuals.extend(yb.tolist())
 
 test_loss /= len(test_loader)
-print(f'\n📊 MSE Loss - Test set (MLP): {test_loss:.6f}')
+print(f'\nMSE Loss - Test set (MLP): {test_loss:.6f}')
 
 
 # ===== Accuracy-based Loss Calculation =====
