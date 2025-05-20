@@ -9,7 +9,7 @@ from data.data_processing import load_and_process_data
 
 
 # ===== Loading, Processing and Normalizing the Dataset =====
-train_loader, val_loader, test_loader, features, target = load_and_process_data('XAU_4h_data.csv')
+train_loader, val_loader, test_loader, features, target = load_and_process_data('XAU_1d_data.csv')
 
 
 # ===== Building the MLP Model =====
@@ -18,8 +18,12 @@ class FullyConnected(nn.Module):
         super(FullyConnected, self).__init__()
         self.fc1 = nn.Linear(input_size, hidden_size1)
         self.relu1 = nn.ReLU()
+        #self.relu1 = nn.LeakyReLU()
+        #self.relu1 = nn.ELU()
         self.fc2 = nn.Linear(hidden_size1, hidden_size2)
         self.relu2 = nn.ReLU()
+        #self.relu2 = nn.LeakyReLU()
+        #self.relu2 = nn.ELU()
         self.fc3 = nn.Linear(hidden_size2, output_size)
 
     def forward(self, x):
@@ -37,8 +41,8 @@ output_size = 1
 lr = 0.001
 
 model = FullyConnected(input_size, hidden_size1, hidden_size2, output_size)
-#criterion = nn.MSELoss()
-criterion = nn.SmoothL1Loss()
+criterion = nn.MSELoss()
+#criterion = nn.SmoothL1Loss()
 #optimizer = optim.RMSprop(model.parameters(), lr)
 optimizer = optim.Adam(model.parameters(), lr)
 
@@ -100,13 +104,13 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
     return train_losses, val_losses
 
 # Start training
-num_epochs = 500
-patience = 30
+num_epochs = 1000
+patience = 100
 train_losses, val_losses = train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs, patience)
 
 
 # ===== Plotting the Losses =====
-starting_epoch = 30  # Start plotting from this epoch for graphic reasons
+starting_epoch = 25  # Start plotting from this epoch for graphic reasons
 plt.figure(figsize=(12,6))
 plt.plot(range(starting_epoch, len(train_losses) + 1), train_losses[starting_epoch-1:], label='Train Loss', marker='o')
 plt.plot(range(starting_epoch, len(val_losses) + 1), val_losses[starting_epoch-1:], label='Validation Loss', marker='s')
@@ -164,3 +168,10 @@ plt.title("Actual vs Predicted Prices")
 plt.legend()
 plt.grid(True)
 plt.show()
+
+print(criterion)
+print(optimizer)
+print(model.relu1)
+print(f"Epochs: {num_epochs}")
+print(f"Patience: {patience}")
+
