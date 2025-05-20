@@ -7,30 +7,31 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 from data.MLP_data_processing import load_and_process_data
 
+# Define the type of forecasting
+seq_len=30      # Length of the input sequence
+pred_len=1      # Length of the prediction sequence (it supports both single-step and multi-step forecasting)
 
 # ===== Loading, Processing and Normalizing the Dataset =====
-train_loader, val_loader, test_loader, features, target = load_and_process_data('XAU_1d_data.csv')
+train_loader, val_loader, test_loader, features, target = load_and_process_data('XAU_1d_data.csv', seq_len, pred_len)
 
 
 # ===== Building the RNN Model =====
 class RNN(nn.Module):
     def __init__(self, input_size, hidden_size, num_layers, output_size):
         super(RNN, self).__init__()
-        self.hidden_size = hidden_size
-        self.num_layers = num_layers
         self.rnn = nn.RNN(input_size, hidden_size, num_layers, batch_first=True)
         self.fc = nn.Linear(hidden_size, output_size)
 
     def forward(self, x):
-        out, _ = self.rnn(x)             # Unpack the tuple
-        out = out[:, -1, :]              # Take the output of the last time step
-        out = self.fc(out)
+        out, _ = self.rnn(x)
+        out = out[:, -1, :]        # Take last time step
+        out = self.fc(out)         # Map to output_size (1 or 7)
         return out
 
 input_size = len(features)
 hidden_size = 64
 num_layers = 1
-output_size = 1
+output_size = pred_len
 lr = 0.001
 
 model = RNN(input_size, hidden_size, num_layers, output_size)
