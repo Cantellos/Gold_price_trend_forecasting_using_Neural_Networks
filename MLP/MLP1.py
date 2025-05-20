@@ -1,12 +1,11 @@
 import sys
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import matplotlib.pyplot as plt
 from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
-from data.data_processing import load_and_process_data
+from data.MLP_data_processing import load_and_process_data
 
 
 # ===== Loading, Processing and Normalizing the Dataset =====
@@ -37,8 +36,9 @@ lr = 0.001
 model = FullyConnected(input_size, hidden_size, output_size)
 #criterion = nn.MSELoss()
 criterion = nn.SmoothL1Loss()
-#optimizer = optim.RMSprop(model.parameters(), lr)
 optimizer = optim.Adam(model.parameters(), lr)
+#optimizer = optim.RMSprop(model.parameters(), lr)
+
 
 # ===== Training the Model =====
 def train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs, patience):

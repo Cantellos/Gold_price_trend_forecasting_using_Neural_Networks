@@ -9,6 +9,7 @@ def load_and_process_data(filename):
     file_path = (Path(__file__).resolve().parent.parent / 'data' / 'dataset' / filename).as_posix()
     data = pd.read_csv(file_path)
 
+    # All available features: Open, High, Low, Close, Volume, MA_50, MA_200, EMA_12, EMA_26, EMA_12-26, EMA_50, EMA_200, EMA_50-200, %K, %D, RSI
     features = ['Open', 'High', 'Low', 'Close', 'Volume', 'MA_50', 'MA_200', 'EMA_12-26', 'EMA_50-200', 'EMA_200', 'RSI']
     target = 'future_close'
     
