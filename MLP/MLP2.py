@@ -7,12 +7,12 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 from data.data_processing import load_and_process_data
 
+
 # ===== Loading, Processing and Normalizing the Dataset =====
-train_loader, val_loader, test_loader, features, target = load_and_process_data('XAU_1d_data.csv')
+train_loader, val_loader, test_loader, features, target = load_and_process_data('XAU_4h_data.csv')
+
 
 # ===== Building the MLP Model =====
-import torch.nn as nn
-
 class FullyConnected(nn.Module):
     def __init__(self, input_size, hidden_size1, hidden_size2, output_size):
         super(FullyConnected, self).__init__()
@@ -37,8 +37,10 @@ output_size = 1
 lr = 0.001
 
 model = FullyConnected(input_size, hidden_size1, hidden_size2, output_size)
-criterion = nn.MSELoss()
-optimizer = optim.RMSprop(model.parameters(), lr)
+#criterion = nn.MSELoss()
+criterion = nn.SmoothL1Loss()
+#optimizer = optim.RMSprop(model.parameters(), lr)
+optimizer = optim.Adam(model.parameters(), lr)
 
 # ===== Training the Model =====
 def train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs, patience):
@@ -80,25 +82,25 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
             best_val_loss = val_loss
             epochs_no_improve = 0
             best_model_state = model.state_dict()
-            print("✅ New best val_loss. Model weights saved in memory.")
+            print("New best val_loss. Model weights saved in memory.")
         else:
             epochs_no_improve += 1
-            print(f"⏳ No improvement: {epochs_no_improve}/{patience}")
+            print(f"No improvement: {epochs_no_improve}/{patience}")
             if epochs_no_improve >= patience:
-                print(f"⛔ Early stopping triggered at epoch {epoch+1}.")
+                print(f"Early stopping triggered at epoch {epoch+1}.")
                 break
     
     # Model checkpointing             
     if best_model_state is not None:
-        model_path = (Path(__file__).resolve().parent.parent / 'models' / 'MLP_model.pth').as_posix()
+        model_path = (Path(__file__).resolve().parent.parent / 'models' / 'MLP2_model.pth').as_posix()
         Path(model_path).parent.mkdir(parents=True, exist_ok=True)
         torch.save(best_model_state, model_path)
-        print("📁 Best model weights saved to disk.")
+        print("Best model weights saved to disk.")
 
     return train_losses, val_losses
 
 # Start training
-num_epochs = 300
+num_epochs = 500
 patience = 30
 train_losses, val_losses = train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs, patience)
 
@@ -117,8 +119,8 @@ plt.show()
 
 # ===== Testing the Model =====
 # Load the best model weights
-model_path = (Path(__file__).resolve().parent.parent / 'models' / 'MLP_model.pth').as_posix()
-model.load_state_dict(torch.load(model_path))
+model_path = (Path(__file__).resolve().parent.parent / 'models' / 'MLP2_model.pth').as_posix()
+model.load_state_dict(torch.load(model_path, weights_only=False))
 
 # Evaluate the model on the test set
 model.eval()
@@ -134,7 +136,7 @@ with torch.no_grad():
         actuals.extend(yb.tolist())
 
 test_loss /= len(test_loader)
-print(f'\n📊 MSE Loss - Test set (MLP): {test_loss:.6f}')
+print(f'\nMSE Loss - Test set (MLP): {test_loss:.6f}')
 
 
 # ===== Accuracy-based Loss Calculation =====
