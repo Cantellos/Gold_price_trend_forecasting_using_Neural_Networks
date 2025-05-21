@@ -13,6 +13,10 @@ def load_and_process_data(filename):
     features = ['Open', 'High', 'Low', 'Close', 'Volume', 'MA_50', 'MA_200', 'EMA_12-26', 'EMA_50-200', 'EMA_200', 'RSI']
     target = 'future_close'
     
+    data.dropna(inplace=True)
+    data.reset_index(drop=True, inplace=True)
+
+
     # Split the dataset into 70% training, 15% validation, 15% testing
     train_size = int(len(data) * 0.7)
     val_size = int(len(data) * 0.15)
@@ -36,7 +40,8 @@ def load_and_process_data(filename):
     validation.reset_index(drop=True, inplace=True)
     testing.reset_index(drop=True, inplace=True)
 
-    # Normalize the features using MinMaxScaler
+
+    # Normalize using MinMaxScaler
     scaler = MinMaxScaler()
     scaler.fit(training[features])
 
@@ -44,9 +49,13 @@ def load_and_process_data(filename):
     val_data = scaler.transform(validation[features])
     test_data = scaler.transform(testing[features])
 
-    train_target = training[[target]].values
-    val_target = validation[[target]].values
-    test_target = testing[[target]].values
+    target_scaler = MinMaxScaler()
+    target_scaler.fit(training[[target]])
+
+    train_target = target_scaler.transform(training[[target]].values)
+    val_target = target_scaler.transform(validation[[target]].values)
+    test_target = target_scaler.transform(testing[[target]].values)
+
 
     # Create TensorDataset
     def create_tensor_dataset(data, target):
@@ -57,6 +66,7 @@ def load_and_process_data(filename):
     train_dataset = create_tensor_dataset(train_data, train_target)
     val_dataset = create_tensor_dataset(val_data, val_target)
     test_dataset = create_tensor_dataset(test_data, test_target)
+
 
     # Create DataLoader for each dataset
     batch_size = 32

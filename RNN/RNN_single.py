@@ -5,11 +5,11 @@ import torch.optim as optim
 import matplotlib.pyplot as plt
 from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
-from data.MLP_data_processing import load_and_process_data
+from data.RNN_data_processing import load_and_process_data
 
 # Define the type of forecasting
-seq_len=30      # Length of the input sequence
-pred_len=1      # Length of the prediction sequence (it supports both single-step and multi-step forecasting)
+seq_len = 30      # Length of the input sequence
+pred_len = 1      # Length of the prediction sequence
 
 # ===== Loading, Processing and Normalizing the Dataset =====
 train_loader, val_loader, test_loader, features, target = load_and_process_data('XAU_1d_data.csv', seq_len, pred_len)
@@ -20,12 +20,13 @@ class RNN(nn.Module):
     def __init__(self, input_size, hidden_size, num_layers, output_size):
         super(RNN, self).__init__()
         self.rnn = nn.RNN(input_size, hidden_size, num_layers, batch_first=True)
-        self.fc = nn.Linear(hidden_size, output_size)
+        self.fc = nn.Linear(hidden_size, output_size)  # Output one value
 
     def forward(self, x):
-        out, _ = self.rnn(x)
-        out = out[:, -1, :]        # Take last time step
-        out = self.fc(out)         # Map to output_size (1 or 7)
+        out, _ = self.rnn(x)           # (batch, seq_len, hidden)
+        out = out[:, -1, :]            # Take last time step
+        out = self.fc(out)             # (batch, 1)
+        out = out.unsqueeze(-1)        # (batch, 1, 1) to match target shape (yb)
         return out
 
 input_size = len(features)
@@ -40,7 +41,7 @@ criterion = nn.MSELoss()
 optimizer = optim.RMSprop(model.parameters(), lr)
 # optimizer = optim.Adam(model.parameters(), lr)
 
-
+# ===== Training the Model =====
 def train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs, patience):
     train_losses = []
     val_losses = []
@@ -51,10 +52,11 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
     for epoch in range(num_epochs):
         model.train()
         train_loss = 0.0
+        
         for xb, yb in train_loader:
             optimizer.zero_grad()
             output = model(xb)
-            loss = criterion(output, yb)
+            loss = criterion(output, yb) # Flatten to avoid implicit broadcasting errors
             loss.backward()
             optimizer.step()
             train_loss += loss.item()
@@ -67,7 +69,7 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
         with torch.no_grad():
             for xb, yb in val_loader:
                 output = model(xb)
-                loss = criterion(output, yb)
+                loss = criterion(output.view(-1), yb.view(-1)) # Flatten to avoid implicit broadcasting errors
                 val_loss += loss.item()
 
         val_loss /= len(val_loader)
@@ -98,7 +100,7 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
     return train_losses, val_losses
 
 # Start training
-num_epochs = 200
+num_epochs = 150
 patience = 30
 train_losses, val_losses = train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs, patience)
 
@@ -134,7 +136,7 @@ with torch.no_grad():
         actuals.extend(yb.tolist())
 
 test_loss /= len(test_loader)
-print(f'\nMSE Loss - Test set (MLP): {test_loss:.6f}')
+print(f'\nMSE Loss - Test set (Single-step): {test_loss:.6f}')
 
 
 # ===== Accuracy-based Loss Calculation =====
@@ -152,13 +154,13 @@ accuracy = accuracy_based_loss(predictions, actuals, threshold)
 print(f'\nAccuracy - Test set (MLP): {accuracy*100:.4f}% of correct predictions within {threshold}%')
 
 
-# ===== Plotting Predictions vs Actuals values =====
+# ===== Plotting Predictions vs Actuals =====
 plt.figure(figsize=(12, 6))
 plt.plot(actuals, label='Actual', color='blue')
 plt.plot(predictions, label='Predicted', color='red')
 plt.xlabel("Time")
 plt.ylabel("Price")
-plt.title("Actual vs Predicted Prices")
+plt.title("Single-Step Prediction: Actual vs Predicted Prices")
 plt.legend()
 plt.grid(True)
 plt.show()

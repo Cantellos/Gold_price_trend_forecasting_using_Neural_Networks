@@ -5,7 +5,7 @@ import torch.optim as optim
 import matplotlib.pyplot as plt
 from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
-from data.RNN_data_processing import load_and_process_data
+from data.MLP_data_processing import load_and_process_data
 
 # Define the type of forecasting
 seq_len=30      # Length of the input sequence
@@ -134,7 +134,7 @@ with torch.no_grad():
         actuals.extend(yb.tolist())
 
 test_loss /= len(test_loader)
-print(f'\nMSE Loss - Test set (Single-step): {test_loss:.6f}')
+print(f'\nMSE Loss - Test set (MLP): {test_loss:.6f}')
 
 
 # ===== Accuracy-based Loss Calculation =====
@@ -152,13 +152,13 @@ accuracy = accuracy_based_loss(predictions, actuals, threshold)
 print(f'\nAccuracy - Test set (MLP): {accuracy*100:.4f}% of correct predictions within {threshold}%')
 
 
-# ===== Plotting Predictions vs Actuals =====
+# ===== Plotting Predictions vs Actuals values =====
 plt.figure(figsize=(12, 6))
 plt.plot(actuals, label='Actual', color='blue')
 plt.plot(predictions, label='Predicted', color='red')
 plt.xlabel("Time")
 plt.ylabel("Price")
-plt.title("Single-Step Prediction: Actual vs Predicted Prices")
+plt.title("Actual vs Predicted Prices")
 plt.legend()
 plt.grid(True)
 plt.show()

@@ -5,47 +5,40 @@ import torch.optim as optim
 import matplotlib.pyplot as plt
 from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
-from data.MLP_data_processing import load_and_process_data
+from data.RNN_data_processing import load_and_process_data
 
+# Define the type of forecasting
+seq_len=30      # Length of the input sequence
+pred_len=1      # Length of the prediction sequence
 
 # ===== Loading, Processing and Normalizing the Dataset =====
-train_loader, val_loader, test_loader, features, target = load_and_process_data('XAU_1d_data.csv')
+train_loader, val_loader, test_loader, features, target = load_and_process_data('XAU_1d_data.csv', seq_len, pred_len)
 
 
-# ===== Building the MLP Model =====
-class FullyConnected(nn.Module):
-    def __init__(self, input_size, hidden_size1, hidden_size2, output_size):
-        super(FullyConnected, self).__init__()
-        self.fc1 = nn.Linear(input_size, hidden_size1)
-        self.relu1 = nn.ReLU()
-        #self.relu1 = nn.LeakyReLU()
-        #self.relu1 = nn.ELU()
-        self.fc2 = nn.Linear(hidden_size1, hidden_size2)
-        self.relu2 = nn.ReLU()
-        #self.relu2 = nn.LeakyReLU()
-        #self.relu2 = nn.ELU()
-        self.fc3 = nn.Linear(hidden_size2, output_size)
+# ===== Building the RNN Model =====
+class RNN(nn.Module):
+    def __init__(self, input_size, hidden_size, num_layers, output_size):
+        super(RNN, self).__init__()
+        self.rnn = nn.RNN(input_size, hidden_size, num_layers, batch_first=True)
+        self.fc = nn.Linear(hidden_size, output_size)
 
     def forward(self, x):
-        out = self.fc1(x)
-        out = self.relu1(out)
-        out = self.fc2(out)
-        out = self.relu2(out)
-        out = self.fc3(out)
+        out, _ = self.rnn(x)
+        out = out[:, -1, :]
+        out = self.fc(out)
         return out
 
 input_size = len(features)
-hidden_size1 = 64
-hidden_size2 = 32
-output_size = 1
+hidden_size = 64
+num_layers = 1
+output_size = pred_len
 lr = 0.001
 
-model = FullyConnected(input_size, hidden_size1, hidden_size2, output_size)
+model = RNN(input_size, hidden_size, num_layers, output_size)
 criterion = nn.MSELoss()
 #criterion = nn.SmoothL1Loss()
-optimizer = optim.Adam(model.parameters(), lr)
-#optimizer = optim.RMSprop(model.parameters(), lr)
-
+optimizer = optim.RMSprop(model.parameters(), lr)
+# optimizer = optim.Adam(model.parameters(), lr)
 
 # ===== Training the Model =====
 def train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs, patience):
@@ -97,7 +90,7 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
     
     # Model checkpointing             
     if best_model_state is not None:
-        model_path = (Path(__file__).resolve().parent.parent / 'models' / 'MLP2_model.pth').as_posix()
+        model_path = (Path(__file__).resolve().parent.parent / 'models' / 'MLP_model.pth').as_posix()
         Path(model_path).parent.mkdir(parents=True, exist_ok=True)
         torch.save(best_model_state, model_path)
         print("Best model weights saved to disk.")
@@ -105,8 +98,8 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
     return train_losses, val_losses
 
 # Start training
-num_epochs = 500
-patience = 30
+num_epochs = 50
+patience = 10
 train_losses, val_losses = train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs, patience)
 
 
@@ -124,7 +117,7 @@ plt.show()
 
 # ===== Testing the Model =====
 # Load the best model weights
-model_path = (Path(__file__).resolve().parent.parent / 'models' / 'MLP2_model.pth').as_posix()
+model_path = (Path(__file__).resolve().parent.parent / 'models' / 'MLP_model.pth').as_posix()
 model.load_state_dict(torch.load(model_path, weights_only=False))
 
 # Evaluate the model on the test set
@@ -141,7 +134,7 @@ with torch.no_grad():
         actuals.extend(yb.tolist())
 
 test_loss /= len(test_loader)
-print(f'\nMSE Loss - Test set (MLP): {test_loss:.6f}')
+print(f'\nMSE Loss - Test set (Single-step): {test_loss:.6f}')
 
 
 # ===== Accuracy-based Loss Calculation =====
@@ -159,20 +152,13 @@ accuracy = accuracy_based_loss(predictions, actuals, threshold)
 print(f'\nAccuracy - Test set (MLP): {accuracy*100:.4f}% of correct predictions within {threshold}%')
 
 
-# ===== Plotting Predictions vs Actuals values =====
+# ===== Plotting Predictions vs Actuals =====
 plt.figure(figsize=(12, 6))
 plt.plot(actuals, label='Actual', color='blue')
 plt.plot(predictions, label='Predicted', color='red')
 plt.xlabel("Time")
 plt.ylabel("Price")
-plt.title("Actual vs Predicted Prices")
+plt.title("Single-Step Prediction: Actual vs Predicted Prices")
 plt.legend()
 plt.grid(True)
 plt.show()
-
-print(criterion)
-print(optimizer)
-print(model.relu1)
-print(f"Epochs: {num_epochs}")
-print(f"Patience: {patience}")
-
