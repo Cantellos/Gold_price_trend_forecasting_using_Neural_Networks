@@ -5,14 +5,14 @@ from sklearn.preprocessing import MinMaxScaler
 from torch.utils.data import DataLoader, TensorDataset
 from pathlib import Path
 
-def load_and_process_data(filename, seq_len, pred_len):
+def load_and_process_data(filename, seq_len, pred_len, batch_size):
     # ===== Loading, Processing and Normalizing the Dataset =====
     file_path = (Path(__file__).resolve().parent.parent / 'data' / 'dataset' / filename).as_posix()
     data = pd.read_csv(file_path)
 
     # All available features: Open, High, Low, Close, Volume, MA_50, MA_200, EMA_12, EMA_26, EMA_12-26, EMA_50, EMA_200, EMA_50-200, %K, %D, RSI
     features = ['Open', 'High', 'Low', 'Close', 'Volume', 'MA_50', 'MA_200', 'EMA_12-26', 'EMA_50-200', 'EMA_200', 'RSI']
-    target = 'future_close'   
+    target = ['future_close']   
 
     data.dropna(inplace=True)
     data.reset_index(drop=True, inplace=True)
@@ -51,11 +51,11 @@ def load_and_process_data(filename, seq_len, pred_len):
     test_data = features_scaler.transform(testing[features])
 
     target_scaler = MinMaxScaler()
-    target_scaler.fit(training[[target]])
+    target_scaler.fit(training[target])
 
-    train_target = target_scaler.transform(training[[target]].values)
-    val_target = target_scaler.transform(validation[[target]].values)
-    test_target = target_scaler.transform(testing[[target]].values)
+    train_target = target_scaler.transform(training[target])
+    val_target = target_scaler.transform(validation[target])
+    test_target = target_scaler.transform(testing[target])
 
 
     # Sliding windows to create sequences
@@ -84,8 +84,8 @@ def load_and_process_data(filename, seq_len, pred_len):
     val_dataset = create_tensor_dataset(val_data, val_target)
     test_dataset = create_tensor_dataset(test_data, test_target)
 
+
     # Create DataLoader for each dataset
-    batch_size = 32
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)

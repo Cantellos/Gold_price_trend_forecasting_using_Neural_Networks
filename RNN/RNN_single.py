@@ -2,17 +2,19 @@ import sys
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 from data.RNN_data_processing import load_and_process_data
 
 # Define the type of forecasting
-seq_len = 30      # Length of the input sequence
+seq_len = 7     # Length of the input sequence
 pred_len = 1      # Length of the prediction sequence
+batch_size = 128   # Batch size for training
 
 # ===== Loading, Processing and Normalizing the Dataset =====
-train_loader, val_loader, test_loader, features, target = load_and_process_data('XAU_1d_data.csv', seq_len, pred_len)
+train_loader, val_loader, test_loader, features, target = load_and_process_data('XAU_1d_data.csv', seq_len, pred_len, batch_size)
 
 
 # ===== Building the RNN Model =====
@@ -20,13 +22,13 @@ class RNN(nn.Module):
     def __init__(self, input_size, hidden_size, num_layers, output_size):
         super(RNN, self).__init__()
         self.rnn = nn.RNN(input_size, hidden_size, num_layers, batch_first=True)
-        self.fc = nn.Linear(hidden_size, output_size)  # Output one value
+        self.fc = nn.Linear(hidden_size, output_size)
 
     def forward(self, x):
-        out, _ = self.rnn(x)           # (batch, seq_len, hidden)
-        out = out[:, -1, :]            # Take last time step
-        out = self.fc(out)             # (batch, 1)
-        out = out.unsqueeze(-1)        # (batch, 1, 1) to match target shape (yb)
+        out, _ = self.rnn(x)       
+        out = out[:, -1, :]            
+        out = self.fc(out)             
+        out = out.unsqueeze(-1)    # (batch_size, 1, 1) to match yb shape       
         return out
 
 input_size = len(features)
@@ -36,10 +38,9 @@ output_size = pred_len
 lr = 0.001
 
 model = RNN(input_size, hidden_size, num_layers, output_size)
-criterion = nn.MSELoss()
-#criterion = nn.SmoothL1Loss()
-optimizer = optim.RMSprop(model.parameters(), lr)
-# optimizer = optim.Adam(model.parameters(), lr)
+#criterion = nn.MSELoss()
+criterion = nn.SmoothL1Loss()
+optimizer = optim.Adam(model.parameters(), lr)
 
 # ===== Training the Model =====
 def train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs, patience):
@@ -92,7 +93,7 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
     
     # Model checkpointing             
     if best_model_state is not None:
-        model_path = (Path(__file__).resolve().parent.parent / 'models' / 'MLP_model.pth').as_posix()
+        model_path = (Path(__file__).resolve().parent.parent / 'models' / 'RNN1_model.pth').as_posix()
         Path(model_path).parent.mkdir(parents=True, exist_ok=True)
         torch.save(best_model_state, model_path)
         print("Best model weights saved to disk.")
@@ -100,13 +101,13 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
     return train_losses, val_losses
 
 # Start training
-num_epochs = 150
-patience = 30
+num_epochs = 200
+patience = 25
 train_losses, val_losses = train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs, patience)
 
 
 # ===== Plotting the Losses =====
-starting_epoch = 30  # Start plotting from this epoch for graphic reasons
+starting_epoch = 2  # Start plotting from this epoch for graphic reasons
 plt.figure(figsize=(12,6))
 plt.plot(range(starting_epoch, len(train_losses) + 1), train_losses[starting_epoch-1:], label='Train Loss', marker='o')
 plt.plot(range(starting_epoch, len(val_losses) + 1), val_losses[starting_epoch-1:], label='Validation Loss', marker='s')
@@ -119,7 +120,7 @@ plt.show()
 
 # ===== Testing the Model =====
 # Load the best model weights
-model_path = (Path(__file__).resolve().parent.parent / 'models' / 'MLP_model.pth').as_posix()
+model_path = (Path(__file__).resolve().parent.parent / 'models' / 'RNN1_model.pth').as_posix()
 model.load_state_dict(torch.load(model_path, weights_only=False))
 
 # Evaluate the model on the test set
@@ -152,6 +153,18 @@ def accuracy_based_loss(predictions, targets, threshold):
 threshold = 1 # % threshold for accuracy
 accuracy = accuracy_based_loss(predictions, actuals, threshold)
 print(f'\nAccuracy - Test set (MLP): {accuracy*100:.4f}% of correct predictions within {threshold}%')
+
+
+# ===== Average Percentage % Error Calculation =====
+def average_percentage_error(predictions, actuals):
+    predictions = np.array(predictions)
+    actuals = np.array(actuals)
+    percent_errors = np.abs((predictions - actuals) / actuals) * 100
+    avg_percent_error = np.mean(percent_errors)
+    return avg_percent_error
+
+percentage_error = average_percentage_error(predictions, actuals)
+print(f'\nAverage % Error - Test set (MLP): {percentage_error:.4f}% of average error')
 
 
 # ===== Plotting Predictions vs Actuals =====

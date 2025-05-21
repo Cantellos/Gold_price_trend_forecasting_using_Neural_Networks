@@ -49,12 +49,9 @@ def load_and_process_data(filename):
     val_data = scaler.transform(validation[features])
     test_data = scaler.transform(testing[features])
 
-    target_scaler = MinMaxScaler()
-    target_scaler.fit(training[[target]])
-
-    train_target = target_scaler.transform(training[[target]].values)
-    val_target = target_scaler.transform(validation[[target]].values)
-    test_target = target_scaler.transform(testing[[target]].values)
+    train_target = training[[target]].values
+    val_target = validation[[target]].values
+    test_target = testing[[target]].values
 
 
     # Create TensorDataset

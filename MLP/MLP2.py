@@ -2,6 +2,7 @@ import sys
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
@@ -118,7 +119,7 @@ plt.plot(range(starting_epoch, len(val_losses) + 1), val_losses[starting_epoch-1
 plt.legend()
 plt.xlabel('Epochs')
 plt.ylabel('Loss')
-plt.title(f'Training and Validation Loss (excluding first {starting_epoch} epochs for graphic reasons)')
+plt.title(f'Training and Validation Loss (excluding first {starting_epoch} epochs for graphic reasons) - MLP2')
 plt.show()
 
 
@@ -141,7 +142,7 @@ with torch.no_grad():
         actuals.extend(yb.tolist())
 
 test_loss /= len(test_loader)
-print(f'\nMSE Loss - Test set (MLP): {test_loss:.6f}')
+print(f'\nMSE Loss - Test set (MLP2 - 3 layers): {test_loss:.6f}')
 
 
 # ===== Accuracy-based Loss Calculation =====
@@ -156,7 +157,19 @@ def accuracy_based_loss(predictions, targets, threshold):
 
 threshold = 1 # % threshold for accuracy
 accuracy = accuracy_based_loss(predictions, actuals, threshold)
-print(f'\nAccuracy - Test set (MLP): {accuracy*100:.4f}% of correct predictions within {threshold}%')
+print(f'\nAccuracy - Test set (MLP2 - 3 layers): {accuracy*100:.4f}% of correct predictions within {threshold}%')
+
+
+# ===== Average Percentage % Error Calculation =====
+def average_percentage_error(predictions, actuals):
+    predictions = np.array(predictions)
+    actuals = np.array(actuals)
+    percent_errors = np.abs((predictions - actuals) / actuals) * 100
+    avg_percent_error = np.mean(percent_errors)
+    return avg_percent_error
+
+percentage_error = average_percentage_error(predictions, actuals)
+print(f'\nAverage % Error - Test set (MLP2 - 3 layers): {percentage_error:.4f}% of average error')
 
 
 # ===== Plotting Predictions vs Actuals values =====
@@ -165,14 +178,8 @@ plt.plot(actuals, label='Actual', color='blue')
 plt.plot(predictions, label='Predicted', color='red')
 plt.xlabel("Time")
 plt.ylabel("Price")
-plt.title("Actual vs Predicted Prices")
+plt.title("Actual vs Predicted Prices - MLP2")
 plt.legend()
 plt.grid(True)
 plt.show()
-
-print(criterion)
-print(optimizer)
-print(model.relu1)
-print(f"Epochs: {num_epochs}")
-print(f"Patience: {patience}")
 
