@@ -9,9 +9,9 @@ sys.path.append(str(Path(__file__).resolve().parent.parent))
 from data.RNN_data_processing import load_and_process_data
 
 # Define the type of forecasting
-seq_len = 30     # Length of the input sequence
-pred_len = 7      # Length of the prediction sequence
-batch_size = 128   # Batch size for training
+seq_len = 30        # Length of the INPUT sequence
+pred_len = 7        # Length of the PREDICTION sequence
+batch_size = 128    # Batch size for training
 
 # ===== Loading, Processing and Normalizing the Dataset =====
 train_loader, val_loader, test_loader, features, target, features_scaler, target_scaler = load_and_process_data('XAU_1d_data.csv', seq_len, pred_len, batch_size)
@@ -28,7 +28,7 @@ class RNN(nn.Module):
         out, _ = self.rnn(x)       
         out = out[:, -1, :]            
         out = self.fc(out)             
-        out = out.unsqueeze(-1)    # (batch_size, 1, 1) to match yb shape       
+        out = out.unsqueeze(-1)      
         return out
 
 input_size = len(features)
@@ -42,6 +42,7 @@ model = RNN(input_size, hidden_size, num_layers, output_size)
 criterion = nn.SmoothL1Loss()
 #optimizer = optim.RMSprop(model.parameters(), lr)
 optimizer = optim.Adam(model.parameters(), lr)
+
 
 # ===== Training the Model =====
 def train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs, patience):
@@ -58,7 +59,7 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
         for xb, yb in train_loader:
             optimizer.zero_grad()
             output = model(xb)
-            loss = criterion(output, yb) # Flatten to avoid implicit broadcasting errors
+            loss = criterion(output, yb)
             loss.backward()
             optimizer.step()
             train_loss += loss.item()
@@ -71,7 +72,7 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
         with torch.no_grad():
             for xb, yb in val_loader:
                 output = model(xb)
-                loss = criterion(output.view(-1), yb.view(-1)) # Flatten to avoid implicit broadcasting errors
+                loss = criterion(output, yb)
                 val_loss += loss.item()
 
         val_loss /= len(val_loader)
@@ -102,7 +103,7 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
     return train_losses, val_losses
 
 # Start training
-num_epochs = 300
+num_epochs = 400
 patience = 30
 train_losses, val_losses = train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs, patience)
 
@@ -131,29 +132,40 @@ actuals = []
 test_loss = 0.0
 with torch.no_grad():
     for xb, yb in test_loader:
-        output = model(xb).squeeze(-1)   
-        yb = yb.squeeze(-1)              
+        output = model(xb).squeeze()  # squeeze to remove extra dimension
+        yb = yb.squeeze()             # and have them as a 1D tensor already
         test_loss += criterion(output, yb).item()
         predictions.extend(output.tolist())
         actuals.extend(yb.tolist())
 
 test_loss /= len(test_loader)
-print(f'\nMSE Loss - Test set (RNN: Multi-Step Prediction): {test_loss:.6f}')
+print(f'\nMSE Loss - Test set (RNN: Multi-Step): {test_loss:.6f}')
+
+
+# ===== Inverse Transforming the Predictions and Actuals =====
+def inverse_transform(predictions, actuals, scaler):
+    for i in range(len(predictions)):
+        predictions[i] = scaler.inverse_transform(np.array(predictions[i]).reshape(-1, 1)).flatten()
+        actuals[i] = scaler.inverse_transform(np.array(actuals[i]).reshape(-1, 1)).flatten()
+    return predictions, actuals
+
+predictions, actuals = inverse_transform(predictions, actuals, target_scaler)
 
 
 # ===== Accuracy-based Loss Calculation =====
-def accuracy_based_loss(predictions, targets, threshold):
+def accuracy_based_loss(predictions, targets, threshold, pred_len):
     corrects = 0
     for i in range(len(predictions)):
-        if abs(predictions[i] - targets[i]) <= threshold/100 * targets[i]:
-            corrects += 1
-    accuracy = corrects / len(predictions)
-    print(f"Correct predictions: {corrects}, Total predictions: {len(predictions)}")
-    return accuracy
-
+        for j in range(pred_len):
+            if abs(predictions[i][j] - targets[i][j]) <= threshold/100 * abs(targets[i][j]):
+                corrects += 1
+    total_predictions = len(predictions) * pred_len
+    accuracy = corrects / total_predictions
+    print(f"\nCorrect predictions: {corrects}, Total predictions: {total_predictions}")
+    print(f'\nAccuracy - Test set (RNN2: Multi-Step): {accuracy*100:.4f}% of correct predictions within {threshold}%')
 threshold = 1 # % threshold for accuracy
-accuracy = accuracy_based_loss(predictions, actuals, threshold)
-print(f'\nAccuracy - Test set (MLP): {accuracy*100:.4f}% of correct predictions within {threshold}%')
+accuracy_based_loss(predictions, actuals, threshold, pred_len)
+
 
 
 # ===== Average Percentage % Error Calculation =====
@@ -162,93 +174,75 @@ def average_percentage_error(predictions, actuals):
     actuals = np.array(actuals)
     percent_errors = np.abs((predictions - actuals) / actuals) * 100
     avg_percent_error = np.mean(percent_errors)
-    return avg_percent_error
-
-percentage_error = average_percentage_error(predictions, actuals)
-print(f'\nAverage % Error - Test set (MLP): {percentage_error:.4f}% of average error')
+    print(f'\nAverage % Error - Test set (RNN2: Multi-Step): {avg_percent_error:.4f}% of average error')
+average_percentage_error(predictions, actuals)
 
 
-# ===== Plotting Actual vs Predicted Prices with Error Band =====
-def plot_actual_vs_mean_predicted_with_error(actuals, predicted, pred_len):
+
+# ===== Reshape to 1D and Align Actuals and Predicted =====
+def reshape_actuals(actuals, pred_len):
     actuals = np.array(actuals)
-    N = len(actuals)
+    actuals = actuals.reshape(-1, pred_len)
+    actuals = actuals[:, 0]
+    return np.array(actuals)
 
-    # If actuals is 2D (e.g. list of windows), reduce it to 1D
-    if actuals.ndim == 2:
-        actuals = np.array([a[0] for a in actuals])
+# Calculate Averaged Predictions
+def averaged_predictions_per_time_step(predictions):
+    predictions = np.array(predictions)
+    forecast_horizon = predictions.shape[1]
+    num_windows = predictions.shape[0]
+    total_days = num_windows + forecast_horizon - 1
 
-    # Dictionary to gather predictions for each time index
-    pred_dict = {i: [] for i in range(N)}
+    day_predictions = [[] for _ in range(total_days)]
+    for i in range(num_windows):
+        for j in range(forecast_horizon):
+            day_predictions[i + j].append(predictions[i, j])
 
-    # Fill pred_dict with predicted values aligned correctly
-    for i, pred_seq in enumerate(predicted):
-        for j, value in enumerate(pred_seq):
-            idx = i + j
-            if idx < N:
-                pred_dict[idx].append(value)
+    averaged = np.array([np.mean(day_preds) for day_preds in day_predictions])
+    std = np.array([np.std(day_preds) for day_preds in day_predictions])
+    return averaged, std
+# Align predictions with actuals
+safe_predictions = predictions[pred_len-1:]
+averaged_predictions, predictions_std = averaged_predictions_per_time_step(safe_predictions)
+actuals = reshape_actuals(actuals, pred_len)
 
-    # Compute means and standard deviations
-    mean_predictions = []
-    std_predictions = []
-    pred_indices = []
 
-    for i in range(N):
-        preds = pred_dict[i]
-        if preds:
-            mean_predictions.append(np.mean(preds))
-            std_predictions.append(np.std(preds))
-            pred_indices.append(i)
+# ===== AVERAGED PREDICTION - Accuracy-based Loss Calculation =====
+def accuracy_based_loss(predictions, targets, threshold):
+    corrects = 0
+    for i in range(len(predictions)):
+        if abs(predictions[i] - targets[i]) <= threshold/100 * targets[i]:
+            corrects += 1
+    accuracy = corrects / len(predictions)
+    print(f"\nAVERAGED PREDICTION - Correct predictions: {corrects}, Total predictions: {len(predictions)}")
+    print(f'\nAVERAGED PREDICTION - Accuracy - Test set (RNN2: Multi-Step): {accuracy*100:.4f}% of correct predictions within {threshold}%')
+threshold = 1 # % threshold for accuracy
+accuracy_based_loss(averaged_predictions, actuals, threshold)
 
-    # Apply left shift to align predictions with start of their forecast window
-    shift = pred_len // 2
-    x_pred = np.array(pred_indices) - shift
-    y_pred = np.array(mean_predictions)
-    y_std = np.array(std_predictions)
 
-    # Keep only non-negative indices (valid range)
-    valid = x_pred >= 0
-    x_pred = x_pred[valid]
-    y_pred = y_pred[valid]
-    y_std = y_std[valid]
+# ===== AVERAGED PREDICTION - Average Percentage % Error Calculation =====
+def average_percentage_error(predictions, actuals):
+    percent_errors = np.abs((predictions - actuals) / actuals) * 100
+    avg_percent_error = np.mean(percent_errors)
+    print(f'\nAVERAGED PREDICTION - Average % Error - Test set (RNN2: Multi-Step): {avg_percent_error:.4f}% of average error')
+average_percentage_error(averaged_predictions, actuals)
 
-    # Align actual values
-    x_actual = np.arange(len(actuals))
-    y_actual = actuals
 
-    # Plot
+# ===== Plotting Averaged Predictions vs Actuals =====
+def plot_prediction_stats(averaged_predictions, actuals, stds):
+    days = np.arange(len(averaged_predictions))
+    upper = averaged_predictions + stds
+    lower = averaged_predictions - stds
+
     plt.figure(figsize=(12, 6))
-    plt.plot(x_actual, y_actual, label='Actual', color='blue')
-    plt.plot(x_pred, y_pred, label='Mean Predicted (Shifted)', color='orange')
-    plt.fill_between(x_pred, y_pred - y_std, y_pred + y_std, color='orange', alpha=0.3, label='±1 STD')
-    plt.xlabel('Time')
-    plt.ylabel('Price')
-    plt.title('Actual vs Mean Predicted Prices (with Shifted Predictions and Error Bands)')
+    plt.plot(days, actuals, color='blue', label='Actuals')
+    plt.plot(days, averaged_predictions, color='red', label='Averaged Predictions')
+    plt.fill_between(days, lower, upper, color='orange', alpha=0.3, label='Mean ± Std Dev')
+    plt.title("Averaged Predictions vs Actuals (with Std Dev) - RNN2: Multi-Step")
+    plt.xlabel("Time Step")
+    plt.ylabel("Predicted Value")
     plt.legend()
     plt.grid(True)
+    plt.tight_layout()
     plt.show()
-
-    return x_pred, y_pred
-
-plot_actual_vs_mean_predicted_with_error(actuals, predictions, pred_len)
-
-# TODO 
-# ===== Inverse Transforming the Predictions and Actuals =====
-#predictions = target_scaler.inverse_transform(np.array(predictions).reshape(-1, 1))
-#actuals = target_scaler.inverse_transform(np.array(actuals).reshape(-1, 1))
-# TODO - Calculate the average prediction for each time step
-def calculate_average_predictions(predictions, actuals):
-    avg_actuals = np.array(actuals)
-    predictions = np.array(predictions)
-    # Calculate the average and standard deviation for predictions of each time step
-    avg_predictions = np.mean(predictions, axis=0)
-    std_predictions = np.std(predictions, axis=0)
-    return avg_predictions, std_predictions, avg_actuals
-
-print(f"\nShape of predictions: {np.array(predictions).shape}")
-avg_predictions, std_predictions, avg_actuals = calculate_average_predictions(predictions, actuals)
-print(f"\nAverage Predictions Shape - Test set (MLP): {avg_predictions.shape}")
-print(f"\nAverage Predictions - Test set (MLP): {avg_predictions}")
-print(f"\nAverage Actuals Shape - Test set (MLP): {avg_actuals.shape}")
-print(f"\nAverage Actuals - Test set (MLP): {avg_actuals}")
-# TODO - Add a function to plot the predictions vs actuals avearage
-# TODO - Calculate Accuracy and Average % Error for the average predictions
+plot_prediction_stats(averaged_predictions, actuals, predictions_std)

@@ -9,9 +9,9 @@ sys.path.append(str(Path(__file__).resolve().parent.parent))
 from data.RNN_data_processing import load_and_process_data
 
 # Define the type of forecasting
-seq_len = 7     # Length of the input sequence
-pred_len = 1      # Length of the prediction sequence
-batch_size = 128   # Batch size for training
+seq_len = 7         # Length of the INPUT sequence
+pred_len = 1        # Length of the PREDICTION sequence
+batch_size = 128    # Batch size for training
 
 # ===== Loading, Processing and Normalizing the Dataset =====
 train_loader, val_loader, test_loader, features, target, features_scaler, target_scaler = load_and_process_data('XAU_1d_data.csv', seq_len, pred_len, batch_size)
@@ -28,7 +28,7 @@ class RNN(nn.Module):
         out, _ = self.rnn(x)       
         out = out[:, -1, :]            
         out = self.fc(out)             
-        out = out.unsqueeze(-1)    # (batch_size, 1, 1) to match yb shape       
+        out = out.unsqueeze(-1)    # (batch_size, 1, 1) to match yb shape     
         return out
 
 input_size = len(features)
@@ -41,6 +41,7 @@ model = RNN(input_size, hidden_size, num_layers, output_size)
 #criterion = nn.MSELoss()
 criterion = nn.SmoothL1Loss()
 optimizer = optim.Adam(model.parameters(), lr)
+
 
 # ===== Training the Model =====
 def train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs, patience):
@@ -57,7 +58,7 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
         for xb, yb in train_loader:
             optimizer.zero_grad()
             output = model(xb)
-            loss = criterion(output, yb) # Flatten to avoid implicit broadcasting errors
+            loss = criterion(output, yb)
             loss.backward()
             optimizer.step()
             train_loss += loss.item()
@@ -70,7 +71,7 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
         with torch.no_grad():
             for xb, yb in val_loader:
                 output = model(xb)
-                loss = criterion(output.view(-1), yb.view(-1)) # Flatten to avoid implicit broadcasting errors
+                loss = criterion(output, yb)
                 val_loss += loss.item()
 
         val_loss /= len(val_loader)
@@ -107,14 +108,14 @@ train_losses, val_losses = train_model(model, train_loader, val_loader, criterio
 
 
 # ===== Plotting the Losses =====
-starting_epoch = 2  # Start plotting from this epoch for graphic reasons
+starting_epoch = 3  # Start plotting from this epoch for graphic reasons
 plt.figure(figsize=(12,6))
 plt.plot(range(starting_epoch, len(train_losses) + 1), train_losses[starting_epoch-1:], label='Train Loss', marker='o')
 plt.plot(range(starting_epoch, len(val_losses) + 1), val_losses[starting_epoch-1:], label='Validation Loss', marker='s')
 plt.legend()
 plt.xlabel('Epochs')
 plt.ylabel('Loss')
-plt.title(f'Training and Validation Loss (excluding first {starting_epoch} epochs for graphic reasons)')
+plt.title(f'Training and Validation Loss (excluding first {starting_epoch} epochs for graphic reasons) - RNN1: Single-Step Prediction')
 plt.show()
 
 
@@ -137,7 +138,7 @@ with torch.no_grad():
         actuals.extend(yb.tolist())
 
 test_loss /= len(test_loader)
-print(f'\nMSE Loss - Test set (Single-step): {test_loss:.6f}')
+print(f'\nMSE Loss - Test set (RNN1: Single-Step): {test_loss:.6f}')
 
 
 # ===== Inverse Transforming the Predictions and Actuals =====
@@ -153,11 +154,10 @@ def accuracy_based_loss(predictions, targets, threshold):
             corrects += 1
     accuracy = corrects / len(predictions)
     print(f"Correct predictions: {corrects}, Total predictions: {len(predictions)}")
-    return accuracy
-
+    print(f'\nAccuracy - Test set (RNN1: Single-Step): {accuracy*100:.4f}% of correct predictions within {threshold}%')
 threshold = 1 # % threshold for accuracy
-accuracy = accuracy_based_loss(predictions, actuals, threshold)
-print(f'\nAccuracy - Test set (MLP): {accuracy*100:.4f}% of correct predictions within {threshold}%')
+accuracy_based_loss(predictions, actuals, threshold)
+
 
 
 # ===== Average Percentage % Error Calculation =====
@@ -166,10 +166,9 @@ def average_percentage_error(predictions, actuals):
     actuals = np.array(actuals)
     percent_errors = np.abs((predictions - actuals) / actuals) * 100
     avg_percent_error = np.mean(percent_errors)
-    return avg_percent_error
+    print(f'\nAverage % Error - Test set (RNN1: Single-Step): {avg_percent_error:.4f}% of average error')
+average_percentage_error(predictions, actuals)
 
-percentage_error = average_percentage_error(predictions, actuals)
-print(f'\nAverage % Error - Test set (MLP): {percentage_error:.4f}% of average error')
 
 # ===== Plotting Predictions vs Actuals =====
 plt.figure(figsize=(12, 6))
@@ -177,7 +176,7 @@ plt.plot(actuals, label='Actual', color='blue')
 plt.plot(predictions, label='Predicted', color='red')
 plt.xlabel("Time")
 plt.ylabel("Price")
-plt.title("Single-Step Prediction: Actual vs Predicted Prices")
+plt.title("Single-Step Prediction: Actual vs Predicted Prices - RNN1: Single-Step Prediction")
 plt.legend()
 plt.grid(True)
 plt.show()

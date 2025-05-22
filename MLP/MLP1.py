@@ -146,11 +146,9 @@ def accuracy_based_loss(predictions, targets, threshold):
             corrects += 1
     accuracy = corrects / len(predictions)
     print(f"Correct predictions: {corrects}, Total predictions: {len(predictions)}")
-    return accuracy
-
+    print(f'\nAccuracy - Test set (MLP1 - 2 layers): {accuracy*100:.4f}% of correct predictions within {threshold}%')
 threshold = 1 # % threshold for accuracy
-accuracy = accuracy_based_loss(predictions, actuals, threshold)
-print(f'\nAccuracy - Test set (MLP1 - 2 layers): {accuracy*100:.4f}% of correct predictions within {threshold}%')
+accuracy_based_loss(predictions, actuals, threshold)
 
 
 # ===== Average Percentage % Error Calculation =====
@@ -159,10 +157,8 @@ def average_percentage_error(predictions, actuals):
     actuals = np.array(actuals)
     percent_errors = np.abs((predictions - actuals) / actuals) * 100
     avg_percent_error = np.mean(percent_errors)
-    return avg_percent_error
-
+    print(f'\nAverage % Error - Test set (MLP1 - 2 layers): {avg_percent_error:.4f}% of average error')
 percentage_error = average_percentage_error(predictions, actuals)
-print(f'\nAverage % Error - Test set (MLP1 - 2 layers): {percentage_error:.4f}% of average error')
 
 
 # ===== Plotting Predictions vs Actuals values =====
