@@ -14,7 +14,7 @@ pred_len = 1      # Length of the prediction sequence
 batch_size = 128   # Batch size for training
 
 # ===== Loading, Processing and Normalizing the Dataset =====
-train_loader, val_loader, test_loader, features, target = load_and_process_data('XAU_1d_data.csv', seq_len, pred_len, batch_size)
+train_loader, val_loader, test_loader, features, target, features_scaler, target_scaler = load_and_process_data('XAU_1d_data.csv', seq_len, pred_len, batch_size)
 
 
 # ===== Building the RNN Model =====
@@ -140,6 +140,11 @@ test_loss /= len(test_loader)
 print(f'\nMSE Loss - Test set (Single-step): {test_loss:.6f}')
 
 
+# ===== Inverse Transforming the Predictions and Actuals =====
+predictions = target_scaler.inverse_transform(np.array(predictions).reshape(-1, 1)).flatten()
+actuals = target_scaler.inverse_transform(np.array(actuals).reshape(-1, 1)).flatten()
+
+
 # ===== Accuracy-based Loss Calculation =====
 def accuracy_based_loss(predictions, targets, threshold):
     corrects = 0
@@ -165,7 +170,6 @@ def average_percentage_error(predictions, actuals):
 
 percentage_error = average_percentage_error(predictions, actuals)
 print(f'\nAverage % Error - Test set (MLP): {percentage_error:.4f}% of average error')
-
 
 # ===== Plotting Predictions vs Actuals =====
 plt.figure(figsize=(12, 6))

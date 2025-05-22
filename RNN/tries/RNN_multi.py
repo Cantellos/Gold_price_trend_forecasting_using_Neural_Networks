@@ -172,106 +172,125 @@ percentage_error = average_percentage_error(predictions, actuals)
 print(f'\nAverage % Error - Test set (RNN: Multi-Step Prediction): {percentage_error:.4f}% of average error')
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-# ===== Plotting the Predictions =====
-def average_predictions(predicted, actuals, pred_len):
+# ===== Plotting Multi-Step Forecasting with Error Bars =====
+def plot_actual_vs_mean_predicted_with_error(actuals, predicted, pred_len):
     actuals = np.array(actuals)
     N = len(actuals)
 
+    # If actuals is 2D (e.g. list of windows), take the first value from each
+    if actuals.ndim == 2:
+        actuals = np.array([a[0] for a in actuals])
+
+    # Create a dictionary to accumulate predictions per time step
     pred_dict = {i: [] for i in range(N)}
 
-    # Collect predictions for each time step
+    # Fill pred_dict with predicted values aligned at correct forecasted positions
     for i, pred_seq in enumerate(predicted):
         for j, value in enumerate(pred_seq):
             idx = i + j
             if idx < N:
                 pred_dict[idx].append(value)
 
-    mean_predicted_values = []
-    std_predicted_values = []
-    x_pred = []
+    # Compute mean and std for each index with predictions
+    mean_predictions = []
+    std_predictions = []
+    pred_indices = []
 
     for i in range(N):
         preds = pred_dict[i]
         if preds:
-            x_pred.append(i - pred_len+1)  # Shift to center-align
-            mean_predicted_values.append(np.mean(preds))
-            std_predicted_values.append(np.std(preds))
+            mean_predictions.append(np.mean(preds))
+            std_predictions.append(np.std(preds))
+            pred_indices.append(i)
 
-    # Filter out negative indices due to shifting
-    x_pred = np.array(x_pred)
-    valid_mask = x_pred >= 0
-    x_pred = x_pred[valid_mask]
-    mean_predicted_values = np.array(mean_predicted_values)[valid_mask]
-    std_predicted_values = np.array(std_predicted_values)[valid_mask]
+    # Left-shift the x-axis of predictions to align with actuals
+    x_pred = np.array(pred_indices) - pred_len
+    y_pred = np.array(mean_predictions)
+    y_std = np.array(std_predictions)
 
-    return x_pred, mean_predicted_values, std_predicted_values
+    # Ensure we only plot valid (non-negative) shifted indices
+    valid = x_pred >= 0
+    x_pred = x_pred[valid]
+    y_pred = y_pred[valid]
+    y_std = y_std[valid]
 
+    # Align actual values with the original unshifted time axis
+    x_actual = np.arange(len(actuals))
+    y_actual = actuals
 
-def plot_actual_vs_predicted_with_error(actuals, x_pred, mean_predicted_values, std_predicted_values, pred_len):
-
-    actuals = np.array([a[0] for a in actuals])
-
+    # Plot
     plt.figure(figsize=(12, 6))
-    plt.plot(actuals, label='Actual', color='blue')
-    plt.plot(x_pred, mean_predicted_values, label='Mean Predicted', color='orange')
-    plt.fill_between(x_pred,
-                     mean_predicted_values - std_predicted_values,
-                     mean_predicted_values + std_predicted_values,
-                     color='orange', alpha=0.3, label='±1 STD')
+    plt.plot(x_actual, y_actual, label='Actual Prices', color='blue')
+    plt.plot(x_pred, y_pred, label='Mean of Predicted Prices', color='red')
+    plt.fill_between(x_pred, y_pred - y_std, y_pred + y_std, color='red', alpha=0.3, label='Error Band (±1 Std Dev)')
     plt.xlabel('Time')
     plt.ylabel('Price')
-    plt.title('Actual vs Mean Predicted Prices (with Error Bands)')
+    plt.title('Actual vs Mean Predicted Prices with Error Bands')
     plt.legend()
     plt.grid(True)
     plt.show()
 
+    import numpy as np
+import matplotlib.pyplot as plt
 
-x_pred, mean_pred, std_pred = compute_mean_predictions(predictions, actuals, pred_len)
-plot_actual_vs_predicted_with_error(actuals, x_pred, mean_pred, std_pred, pred_len)
+def plot_actual_vs_mean_predicted_with_error(actuals, predicted, pred_len):
+    actuals = np.array(actuals)
+    N = len(actuals)
 
-# ===== Accuracy-based Loss Calculation =====
-def accuracy_based_loss(predictions, targets, threshold):
-    predictions = np.array(predictions)
-    targets = np.array(targets)
-    errors = np.abs(predictions - targets)
-    allowed_errors = threshold / 100 * np.abs(targets)
-    corrects = np.sum(errors <= allowed_errors)
-    accuracy = corrects / len(predictions)
-    print(f"Correct predictions: {corrects}, Total predictions: {len(predictions)}")
-    return accuracy
+    # If actuals is 2D (e.g. list of windows), reduce it to 1D
+    if actuals.ndim == 2:
+        actuals = np.array([a[0] for a in actuals])
 
+    # Dictionary to gather predictions for each time index
+    pred_dict = {i: [] for i in range(N)}
 
+    # Fill pred_dict with predicted values aligned correctly
+    for i, pred_seq in enumerate(predicted):
+        for j, value in enumerate(pred_seq):
+            idx = i + j
+            if idx < N:
+                pred_dict[idx].append(value)
 
-# ===== Average Percentage % Error Calculation =====
-def average_percentage_error(predictions, targets):
-    predictions = np.array(predictions)
-    targets = np.array(targets)
-    percent_errors = np.abs((predictions - targets) / targets) * 100
-    avg_percent_error = np.mean(percent_errors)
-    return avg_percent_error
+    # Compute means and standard deviations
+    mean_predictions = []
+    std_predictions = []
+    pred_indices = []
 
-x_pred = np.array(x_pred).astype(int)
-actuals = np.array(actuals)
+    for i in range(N):
+        preds = pred_dict[i]
+        if preds:
+            mean_predictions.append(np.mean(preds))
+            std_predictions.append(np.std(preds))
+            pred_indices.append(i)
 
-# Example usage with your averaged predicted values and actuals:
-threshold = 1  # % threshold for accuracy
+    # Apply left shift to align predictions with start of their forecast window
+    shift = pred_len // 2
+    x_pred = np.array(pred_indices) - shift
+    y_pred = np.array(mean_predictions)
+    y_std = np.array(std_predictions)
 
-accuracy = accuracy_based_loss(mean_pred, actuals[x_pred], threshold)
-print(f'\nAccuracy - Test set (RNN: Multi-Step Prediction): {accuracy*100:.4f}% of correct predictions within {threshold}%')
+    # Keep only non-negative indices (valid range)
+    valid = x_pred >= 0
+    x_pred = x_pred[valid]
+    y_pred = y_pred[valid]
+    y_std = y_std[valid]
 
-percentage_error = average_percentage_error(mean_pred, actuals[x_pred])
-print(f'\nAverage % Error - Test set (RNN: Multi-Step Prediction): {percentage_error:.4f}% of average error')
+    # Align actual values
+    x_actual = np.arange(len(actuals))
+    y_actual = actuals
 
+    # Plot
+    plt.figure(figsize=(12, 6))
+    plt.plot(x_actual, y_actual, label='Actual', color='blue')
+    plt.plot(x_pred, y_pred, label='Mean Predicted (Shifted)', color='orange')
+    plt.fill_between(x_pred, y_pred - y_std, y_pred + y_std, color='orange', alpha=0.3, label='±1 STD')
+    plt.xlabel('Time')
+    plt.ylabel('Price')
+    plt.title('Actual vs Mean Predicted Prices (with Shifted Predictions and Error Bands)')
+    plt.legend()
+    plt.grid(True)
+    plt.show()
 
+    return x_pred, y_pred
+
+plot_actual_vs_mean_predicted_with_error(actuals, predictions, pred_len)

@@ -90,4 +90,4 @@ def load_and_process_data(filename, seq_len, pred_len, batch_size):
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
-    return train_loader, val_loader, test_loader, features, pred_len
+    return train_loader, val_loader, test_loader, features, pred_len, features_scaler, target_scaler

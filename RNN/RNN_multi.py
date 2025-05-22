@@ -14,7 +14,7 @@ pred_len = 7      # Length of the prediction sequence
 batch_size = 128   # Batch size for training
 
 # ===== Loading, Processing and Normalizing the Dataset =====
-train_loader, val_loader, test_loader, features, target = load_and_process_data('XAU_1d_data.csv', seq_len, pred_len, batch_size)
+train_loader, val_loader, test_loader, features, target, features_scaler, target_scaler = load_and_process_data('XAU_1d_data.csv', seq_len, pred_len, batch_size)
 
 
 # ===== Building the RNN Model =====
@@ -143,96 +143,32 @@ print(f'\nMSE Loss - Test set (RNN: Multi-Step Prediction): {test_loss:.6f}')
 
 # ===== Accuracy-based Loss Calculation =====
 def accuracy_based_loss(predictions, targets, threshold):
-    flat_preds = [item for sublist in predictions for item in sublist]
-    flat_targets = [item for sublist in targets for item in sublist]
-
     corrects = 0
-    for i in range(len(flat_preds)):
-        if abs(flat_preds[i] - flat_targets[i]) <= threshold/100 * abs(flat_targets[i]):
+    for i in range(len(predictions)):
+        if abs(predictions[i] - targets[i]) <= threshold/100 * targets[i]:
             corrects += 1
-    accuracy = corrects / len(flat_preds)
-    print(f"Correct predictions: {corrects}, Total predictions: {len(flat_preds)}")
+    accuracy = corrects / len(predictions)
+    print(f"Correct predictions: {corrects}, Total predictions: {len(predictions)}")
     return accuracy
 
 threshold = 1 # % threshold for accuracy
 accuracy = accuracy_based_loss(predictions, actuals, threshold)
-print(f'\nAccuracy - Test set (RNN: Multi-Step Prediction): {accuracy*100:.4f}% of correct predictions within {threshold}%')
+print(f'\nAccuracy - Test set (MLP): {accuracy*100:.4f}% of correct predictions within {threshold}%')
 
 
 # ===== Average Percentage % Error Calculation =====
 def average_percentage_error(predictions, actuals):
-    flat_preds = np.array([item for sublist in predictions for item in sublist])
-    flat_actuals = np.array([item for sublist in actuals for item in sublist])
-
-    percent_errors = np.abs((flat_preds - flat_actuals) / flat_actuals) * 100
+    predictions = np.array(predictions)
+    actuals = np.array(actuals)
+    percent_errors = np.abs((predictions - actuals) / actuals) * 100
     avg_percent_error = np.mean(percent_errors)
     return avg_percent_error
 
 percentage_error = average_percentage_error(predictions, actuals)
-print(f'\nAverage % Error - Test set (RNN: Multi-Step Prediction): {percentage_error:.4f}% of average error')
+print(f'\nAverage % Error - Test set (MLP): {percentage_error:.4f}% of average error')
 
 
-# ===== Plotting Multi-Step Forecasting with Error Bars =====
-def plot_actual_vs_mean_predicted_with_error(actuals, predicted, pred_len):
-    actuals = np.array(actuals)
-    N = len(actuals)
-
-    # If actuals is 2D (e.g. list of windows), take the first value from each
-    if actuals.ndim == 2:
-        actuals = np.array([a[0] for a in actuals])
-
-    # Create a dictionary to accumulate predictions per time step
-    pred_dict = {i: [] for i in range(N)}
-
-    # Fill pred_dict with predicted values aligned at correct forecasted positions
-    for i, pred_seq in enumerate(predicted):
-        for j, value in enumerate(pred_seq):
-            idx = i + j
-            if idx < N:
-                pred_dict[idx].append(value)
-
-    # Compute mean and std for each index with predictions
-    mean_predictions = []
-    std_predictions = []
-    pred_indices = []
-
-    for i in range(N):
-        preds = pred_dict[i]
-        if preds:
-            mean_predictions.append(np.mean(preds))
-            std_predictions.append(np.std(preds))
-            pred_indices.append(i)
-
-    # Left-shift the x-axis of predictions to align with actuals
-    x_pred = np.array(pred_indices) - pred_len
-    y_pred = np.array(mean_predictions)
-    y_std = np.array(std_predictions)
-
-    # Ensure we only plot valid (non-negative) shifted indices
-    valid = x_pred >= 0
-    x_pred = x_pred[valid]
-    y_pred = y_pred[valid]
-    y_std = y_std[valid]
-
-    # Align actual values with the original unshifted time axis
-    x_actual = np.arange(len(actuals))
-    y_actual = actuals
-
-    # Plot
-    plt.figure(figsize=(12, 6))
-    plt.plot(x_actual, y_actual, label='Actual Prices', color='blue')
-    plt.plot(x_pred, y_pred, label='Mean of Predicted Prices', color='red')
-    plt.fill_between(x_pred, y_pred - y_std, y_pred + y_std, color='red', alpha=0.3, label='Error Band (±1 Std Dev)')
-    plt.xlabel('Time')
-    plt.ylabel('Price')
-    plt.title('Actual vs Mean Predicted Prices with Error Bands')
-    plt.legend()
-    plt.grid(True)
-    plt.show()
-
-    import numpy as np
-import matplotlib.pyplot as plt
-
+# ===== Plotting Actual vs Predicted Prices with Error Band =====
 def plot_actual_vs_mean_predicted_with_error(actuals, predicted, pred_len):
     actuals = np.array(actuals)
     N = len(actuals)
@@ -294,3 +230,25 @@ def plot_actual_vs_mean_predicted_with_error(actuals, predicted, pred_len):
     return x_pred, y_pred
 
 plot_actual_vs_mean_predicted_with_error(actuals, predictions, pred_len)
+
+# TODO 
+# ===== Inverse Transforming the Predictions and Actuals =====
+#predictions = target_scaler.inverse_transform(np.array(predictions).reshape(-1, 1))
+#actuals = target_scaler.inverse_transform(np.array(actuals).reshape(-1, 1))
+# TODO - Calculate the average prediction for each time step
+def calculate_average_predictions(predictions, actuals):
+    avg_actuals = np.array(actuals)
+    predictions = np.array(predictions)
+    # Calculate the average and standard deviation for predictions of each time step
+    avg_predictions = np.mean(predictions, axis=0)
+    std_predictions = np.std(predictions, axis=0)
+    return avg_predictions, std_predictions, avg_actuals
+
+print(f"\nShape of predictions: {np.array(predictions).shape}")
+avg_predictions, std_predictions, avg_actuals = calculate_average_predictions(predictions, actuals)
+print(f"\nAverage Predictions Shape - Test set (MLP): {avg_predictions.shape}")
+print(f"\nAverage Predictions - Test set (MLP): {avg_predictions}")
+print(f"\nAverage Actuals Shape - Test set (MLP): {avg_actuals.shape}")
+print(f"\nAverage Actuals - Test set (MLP): {avg_actuals}")
+# TODO - Add a function to plot the predictions vs actuals avearage
+# TODO - Calculate Accuracy and Average % Error for the average predictions
