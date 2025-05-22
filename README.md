@@ -15,9 +15,9 @@ Now that's all set up, you can choose whatever model and type of prediction you 
 SINGLE-step prediction
   - MLP1.py uses a MLP with 1 hidden layer
   - MLP2.py uses a MLP with 2 hidden layers
-  - RNN1.py uses a RNN, can take multiple-step input
+  - RNN_single.py uses a RNN, can take multiple-step input
 MULTI-step prediction
-  - RNN2.py uses a RNN, should take multiple-step input in order to make a (smaller) multi-step prediction
+  - RNN2_multi.py uses a RNN, should take multiple-step input in order to make a (smaller) multi-step prediction
 
 All the files are currenty set up in order to work with a 1-Day time frame, using the file 'XAU_1d_data.csv'. If you want to use a different time frame you need to change the name of the file in the first rows of the program.
 
