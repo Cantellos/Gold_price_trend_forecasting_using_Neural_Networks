@@ -7,9 +7,8 @@ How to use:
 - Move into the 'data' directory'
 - Create here a new 'dataset' directory
 - Put the dowloaded dataset into the new relevant directory
-- Run the file data_cleaning.py
-- Run the file fin_indicators.py
-OPTIONAL: - Run the file dataset_visualisation.py to visualize price trend and some financial indicators
+- Run the file data_preparation.py
+- OPTIONAL: Run the file dataset_visualisation.py to visualize price trend and some financial indicators
 
 
 Now that's all set up, you can choose whatever model and type of prediction you want to use and run the relative file:
