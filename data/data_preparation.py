@@ -25,8 +25,6 @@ for file in files:
     # Save the cleaned data to a new CSV file
     df_clean.to_csv(file, index=False)
 
-    print(f"Cleaned data saved to {file}")
-
 
 # ===== Adding financial indicators to the dataset ====
     # Load the data from the CSV file
@@ -69,7 +67,7 @@ for file in files:
     data = data.dropna()
     data.to_csv(file, index=False)
 
-    print(f"Financial indicators added and saved to {file}")
+    print(f"Cleaned data and added Financial indicators to {file} file.")
 
 #TODO: Add Fibonacci retracement levels
 #TODO: Add Bollinger bands retracement levels

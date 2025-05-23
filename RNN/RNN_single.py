@@ -35,7 +35,7 @@ input_size = len(features)
 hidden_size = 64
 num_layers = 1
 output_size = pred_len
-lr = 0.001
+lr = 0.00075
 
 model = RNN(input_size, hidden_size, num_layers, output_size)
 #criterion = nn.MSELoss()
@@ -102,13 +102,13 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
     return train_losses, val_losses
 
 # Start training
-num_epochs = 200
-patience = 25
+num_epochs = 500
+patience = 30
 train_losses, val_losses = train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs, patience)
 
 
 # ===== Plotting the Losses =====
-starting_epoch = 3  # Start plotting from this epoch for graphic reasons
+starting_epoch = 2  # Start plotting from this epoch for graphic reasons
 plt.figure(figsize=(12,6))
 plt.plot(range(starting_epoch, len(train_losses) + 1), train_losses[starting_epoch-1:], label='Train Loss', marker='o')
 plt.plot(range(starting_epoch, len(val_losses) + 1), val_losses[starting_epoch-1:], label='Validation Loss', marker='s')

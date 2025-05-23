@@ -8,9 +8,10 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 from data.MLP_data_processing import load_and_process_data
 
+batch_size = 32    # Batch size for training
 
 # ===== Loading, Processing and Normalizing the Dataset =====
-train_loader, val_loader, test_loader, features, target = load_and_process_data('XAU_1d_data.csv')
+train_loader, val_loader, test_loader, features, target = load_and_process_data('XAU_1d_data.csv', batch_size)
 
 
 # ===== Building the MLP Model =====

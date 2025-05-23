@@ -4,7 +4,7 @@ from sklearn.preprocessing import MinMaxScaler
 from torch.utils.data import DataLoader, TensorDataset
 from pathlib import Path
 
-def load_and_process_data(filename):
+def load_and_process_data(filename, batch_size):
     # ===== Loading, Processing and Normalizing the Dataset =====
     file_path = (Path(__file__).resolve().parent.parent / 'data' / 'dataset' / filename).as_posix()
     data = pd.read_csv(file_path)
@@ -66,7 +66,6 @@ def load_and_process_data(filename):
 
 
     # Create DataLoader for each dataset
-    batch_size = 32
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)

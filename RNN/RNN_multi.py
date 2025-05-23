@@ -35,12 +35,11 @@ input_size = len(features)
 hidden_size = 64
 num_layers = 1
 output_size = pred_len
-lr = 0.001
+lr = 0.0006
 
 model = RNN(input_size, hidden_size, num_layers, output_size)
 #criterion = nn.MSELoss()
 criterion = nn.SmoothL1Loss()
-#optimizer = optim.RMSprop(model.parameters(), lr)
 optimizer = optim.Adam(model.parameters(), lr)
 
 
